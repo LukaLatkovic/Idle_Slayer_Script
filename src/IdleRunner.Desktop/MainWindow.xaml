@@ -123,8 +123,15 @@
 
                 <Button Margin="0,34,0,0"
                         Content="{Binding PrimaryActionText}"
+                        IsEnabled="{Binding IsPrimaryActionEnabled}"
                         Style="{StaticResource PrimaryButtonStyle}"
                         Click="OnPrimaryActionClick" />
+
+                <TextBlock Margin="0,11,0,0"
+                           Text="{Binding CommandCountLabel}"
+                           FontSize="12"
+                           Foreground="{StaticResource MutedTextBrush}"
+                           HorizontalAlignment="Center" />
 
                 <Grid Margin="0,34,0,0">
                     <Grid.RowDefinitions>

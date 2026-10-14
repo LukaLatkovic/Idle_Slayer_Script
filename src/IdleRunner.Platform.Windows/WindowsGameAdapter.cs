@@ -11,6 +11,7 @@ public sealed partial class WindowsGameAdapter : IGameAdapter
     private const ushort VirtualKeyRight = 0x27;
     private const uint InputKeyboard = 1;
     private const uint KeyEventKeyUp = 0x0002;
+    private const int ShowWindowRestore = 9;
 
     private nint _gameWindow;
 
@@ -60,7 +61,7 @@ public sealed partial class WindowsGameAdapter : IGameAdapter
             clientRect.Bottom - clientRect.Top));
     }
 
-    public Task ExecuteAsync(AutomationAction action, CancellationToken cancellationToken)
+    public Task<bool> ExecuteAsync(AutomationAction action, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -74,7 +75,7 @@ public sealed partial class WindowsGameAdapter : IGameAdapter
             || !NativeMethods.IsWindow(window)
             || NativeMethods.GetForegroundWindow() != window)
         {
-            return Task.CompletedTask;
+            return Task.FromResult(false);
         }
 
         NativeMethods.Input[] inputs =
@@ -95,7 +96,28 @@ public sealed partial class WindowsGameAdapter : IGameAdapter
             throw new Win32Exception(Marshal.GetLastWin32Error(), "Windows did not accept all keyboard input events.");
         }
 
-        return Task.CompletedTask;
+        return Task.FromResult(true);
+    }
+
+    public Task<bool> TryActivateAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        nint window = NativeMethods.FindWindow(null, GameWindowTitle);
+        _gameWindow = window;
+
+        if (window == nint.Zero || !NativeMethods.IsWindowVisible(window))
+        {
+            return Task.FromResult(false);
+        }
+
+        if (NativeMethods.IsIconic(window))
+        {
+            NativeMethods.ShowWindow(window, ShowWindowRestore);
+        }
+
+        bool activated = NativeMethods.SetForegroundWindow(window);
+        return Task.FromResult(activated || NativeMethods.GetForegroundWindow() == window);
     }
 
     private static partial class NativeMethods
@@ -117,6 +139,14 @@ public sealed partial class WindowsGameAdapter : IGameAdapter
 
         [LibraryImport("user32.dll")]
         internal static partial nint GetForegroundWindow();
+
+        [LibraryImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static partial bool SetForegroundWindow(nint window);
+
+        [LibraryImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static partial bool ShowWindow(nint window, int command);
 
         [LibraryImport("user32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]

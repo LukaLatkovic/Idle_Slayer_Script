@@ -15,7 +15,8 @@ internal static class Program
             ("Missing game does not send input", MissingGameDoesNotSendInputAsync),
             ("Background game does not send input", BackgroundGameDoesNotSendInputAsync),
             ("Wrong client size does not send input", WrongClientSizeDoesNotSendInputAsync),
-            ("Ready game receives input", ReadyGameReceivesInputAsync)
+            ("Ready game receives input", ReadyGameReceivesInputAsync),
+            ("Rejected input is not reported as executed", RejectedInputIsNotReportedAsync)
         ];
 
         int failures = 0;
@@ -112,12 +113,29 @@ internal static class Program
     {
         FakeGameAdapter adapter = new(ReadySnapshot());
         AutomationEngine engine = CreateEngine(adapter);
+        int executedActionCount = 0;
+        engine.ActionExecuted += (_, _) => executedActionCount++;
         engine.SetPaused(false);
 
         await engine.RunOnceAsync(Settings);
 
         AssertEqual(1, adapter.ExecutionCount);
         AssertEqual(AutomationAction.JumpAndBoost, adapter.LastAction);
+        AssertEqual(1, executedActionCount);
+    }
+
+    private static async Task RejectedInputIsNotReportedAsync()
+    {
+        FakeGameAdapter adapter = new(ReadySnapshot(), executionSucceeds: false);
+        AutomationEngine engine = CreateEngine(adapter);
+        int executedActionCount = 0;
+        engine.ActionExecuted += (_, _) => executedActionCount++;
+        engine.SetPaused(false);
+
+        await engine.RunOnceAsync(Settings);
+
+        AssertEqual(1, adapter.ExecutionCount);
+        AssertEqual(0, executedActionCount);
     }
 
     private static AutomationEngine CreateEngine(FakeGameAdapter adapter)
@@ -145,10 +163,12 @@ internal static class Program
     private sealed class FakeGameAdapter : IGameAdapter
     {
         private readonly GameSnapshot _snapshot;
+        private readonly bool _executionSucceeds;
 
-        public FakeGameAdapter(GameSnapshot snapshot)
+        public FakeGameAdapter(GameSnapshot snapshot, bool executionSucceeds = true)
         {
             _snapshot = snapshot;
+            _executionSucceeds = executionSucceeds;
         }
 
         public int ExecutionCount { get; private set; }
@@ -161,12 +181,18 @@ internal static class Program
             return Task.FromResult(_snapshot);
         }
 
-        public Task ExecuteAsync(AutomationAction action, CancellationToken cancellationToken)
+        public Task<bool> TryActivateAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(true);
+        }
+
+        public Task<bool> ExecuteAsync(AutomationAction action, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             ExecutionCount++;
             LastAction = action;
-            return Task.CompletedTask;
+            return Task.FromResult(_executionSucceeds);
         }
     }
 

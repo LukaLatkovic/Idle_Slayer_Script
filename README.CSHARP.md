@@ -9,8 +9,10 @@ The first vertical slice provides:
 - a .NET 10 WPF desktop application;
 - an automation core that is independent of Windows and UI code;
 - a Windows adapter that locates the Idle Slayer window and emits `Up` and `Right` through `SendInput`;
+- explicit game activation when the user starts automation;
 - enforced foreground-window and 1280 x 720 client-area safety gates;
 - a paused-by-default startup state;
+- a live count of keyboard commands confirmed by the Windows adapter;
 - persisted interval settings and local activity logs;
 - dependency-free executable tests for the core safety behavior.
 
@@ -39,7 +41,7 @@ The desktop application stores settings and logs under `%LOCALAPPDATA%\IdleRunne
 
 ## Safety behavior
 
-The application never activates Idle Slayer on the user's behalf. Keyboard input is emitted only when all of these conditions are true:
+The application activates Idle Slayer only as a direct response to the user pressing **Start automation**. It does not repeatedly steal focus. Keyboard input is emitted only when all of these conditions are true:
 
 1. automation was explicitly started;
 2. a visible, non-minimized window titled `Idle Slayer` exists;

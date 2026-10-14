@@ -23,6 +23,8 @@ public sealed class AutomationEngine
 
     public event EventHandler<bool>? PauseChanged;
 
+    public event EventHandler<AutomationAction>? ActionExecuted;
+
     public bool IsPaused => Volatile.Read(ref _isPaused) == 1;
 
     public void SetPaused(bool isPaused)
@@ -91,9 +93,14 @@ public sealed class AutomationEngine
 
         if (!IsPaused && snapshot.CanReceiveInput(normalizedSettings))
         {
-            await _gameAdapter
+            bool wasExecuted = await _gameAdapter
                 .ExecuteAsync(AutomationAction.JumpAndBoost, cancellationToken)
                 .ConfigureAwait(false);
+
+            if (wasExecuted)
+            {
+                ActionExecuted?.Invoke(this, AutomationAction.JumpAndBoost);
+            }
         }
 
         return snapshot;

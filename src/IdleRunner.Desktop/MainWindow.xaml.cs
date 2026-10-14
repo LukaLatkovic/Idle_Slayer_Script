@@ -22,9 +22,9 @@ public partial class MainWindow : Window
         _viewModel.Start();
     }
 
-    private void OnPrimaryActionClick(object sender, RoutedEventArgs e)
+    private async void OnPrimaryActionClick(object sender, RoutedEventArgs e)
     {
-        _viewModel.ToggleAutomation();
+        await _viewModel.ToggleAutomationAsync();
     }
 
     private async void OnClosing(object? sender, CancelEventArgs e)
