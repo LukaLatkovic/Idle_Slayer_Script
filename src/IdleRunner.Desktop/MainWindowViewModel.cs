@@ -18,6 +18,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private readonly AutomationSettings _settings;
     private readonly DesktopAutomationLog _log;
     private readonly IGameAdapter _gameAdapter;
+    private readonly IGameFrameSource _frameSource;
     private readonly AutomationEngine _engine;
     private readonly CancellationTokenSource _shutdown = new();
     private Task? _engineTask;
@@ -28,6 +29,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private bool _isPrimaryActionEnabled = true;
     private int _commandCount;
     private GameSnapshot? _lastSnapshot;
+    private bool _frameCaptureReported;
 
     public MainWindowViewModel(Dispatcher dispatcher)
     {
@@ -37,6 +39,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _log = new DesktopAutomationLog();
         _log.EntryWritten += OnLogEntryWritten;
         _gameAdapter = new WindowsGameAdapter();
+        _frameSource = new WindowsGameFrameSource();
         _engine = new AutomationEngine(_gameAdapter, _log, () => _settings);
         _engine.SnapshotChanged += OnSnapshotChanged;
         _engine.PauseChanged += OnPauseChanged;
@@ -152,6 +155,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             _log.Info(activated
                 ? "Idle Slayer was activated. Input delivery is enabled."
                 : "Idle Slayer could not be activated. Focus the game window to enable input delivery.");
+
+            if (activated)
+            {
+                await VerifyFrameCaptureAsync();
+            }
         }
         catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
         {
@@ -192,6 +200,35 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             _lastSnapshot = snapshot;
             RefreshStatus();
         });
+    }
+
+    private async Task VerifyFrameCaptureAsync()
+    {
+        if (_frameCaptureReported)
+        {
+            return;
+        }
+
+        GameFrame? frame = await _frameSource.CaptureAsync(_shutdown.Token);
+        if (frame is null)
+        {
+            _log.Info("Visual observation is not available for the current game window.");
+            return;
+        }
+
+        LuminanceRange luminanceRange = frame.MeasureLuminanceRange(sampleStep: 8);
+        if (luminanceRange.Span < 16)
+        {
+            _log.Info(
+                $"Visual observation returned a low-contrast frame "
+                + $"({luminanceRange.Darkest}-{luminanceRange.Lightest}); detection remains disabled.");
+            return;
+        }
+
+        _frameCaptureReported = true;
+        _log.Info(
+            $"Visual observation is ready: captured a {frame.Width} x {frame.Height} client frame "
+            + $"with luminance {luminanceRange.Darkest}-{luminanceRange.Lightest}.");
     }
 
     private void OnPauseChanged(object? sender, bool isPaused)

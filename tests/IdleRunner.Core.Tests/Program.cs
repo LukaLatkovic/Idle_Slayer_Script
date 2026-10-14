@@ -11,6 +11,9 @@ internal static class Program
         (string Name, Func<Task> Test)[] tests =
         [
             ("Settings are normalized", SettingsAreNormalizedAsync),
+            ("Game frame preserves BGRA pixels", GameFramePreservesPixelsAsync),
+            ("Luminance matching tolerates brightness changes", LuminanceMatchingToleratesBrightnessAsync),
+            ("Template search locates the strongest shape", TemplateSearchLocatesStrongestShapeAsync),
             ("Paused engine does not send input", PausedEngineDoesNotSendInputAsync),
             ("Missing game does not send input", MissingGameDoesNotSendInputAsync),
             ("Background game does not send input", BackgroundGameDoesNotSendInputAsync),
@@ -52,6 +55,63 @@ internal static class Program
         AssertEqual(AutomationSettings.MinimumIntervalMilliseconds, normalized.JumpIntervalMilliseconds);
         AssertEqual(1, normalized.RequiredClientWidth);
         AssertEqual(1, normalized.RequiredClientHeight);
+        return Task.CompletedTask;
+    }
+
+    private static Task GameFramePreservesPixelsAsync()
+    {
+        byte[] pixels = [30, 20, 10, 255];
+        GameFrame frame = new(1, 1, pixels);
+        pixels[2] = 200;
+
+        AssertEqual(new RgbColor(10, 20, 30), frame.GetPixel(0, 0));
+        AssertEqual((byte)18, frame.GetLuminance(0, 0));
+        AssertEqual(0, frame.MeasureLuminanceRange().Span);
+        return Task.CompletedTask;
+    }
+
+    private static Task LuminanceMatchingToleratesBrightnessAsync()
+    {
+        byte[,] shape =
+        {
+            { 10, 20, 30 },
+            { 40, 80, 60 },
+            { 70, 90, 100 }
+        };
+        GameFrame reference = CreateGrayscaleFrame(5, 5, 3, shape, left: 1, top: 1);
+        GameFrame brighter = CreateGrayscaleFrame(7, 7, 3, shape, left: 3, top: 3, brightnessOffset: 30);
+        LuminanceTemplate template = LuminanceTemplate.FromFrame(
+            reference,
+            new FrameRectangle(1, 1, 3, 3));
+
+        double score = LuminanceTemplateMatcher.Compare(brighter, 3, 3, template);
+
+        AssertTrue(score > 0.999, $"Expected a brightness-tolerant match, received {score:F4}.");
+        return Task.CompletedTask;
+    }
+
+    private static Task TemplateSearchLocatesStrongestShapeAsync()
+    {
+        byte[,] shape =
+        {
+            { 12, 65, 18 },
+            { 35, 110, 42 },
+            { 85, 25, 95 }
+        };
+        GameFrame reference = CreateGrayscaleFrame(3, 3, 0, shape, left: 0, top: 0);
+        GameFrame candidate = CreateGrayscaleFrame(8, 7, 4, shape, left: 4, top: 2, brightnessOffset: 20);
+        LuminanceTemplate template = LuminanceTemplate.FromFrame(
+            reference,
+            new FrameRectangle(0, 0, 3, 3));
+
+        TemplateMatchResult result = LuminanceTemplateMatcher.FindBest(
+            candidate,
+            new FrameRectangle(0, 0, candidate.Width, candidate.Height),
+            template);
+
+        AssertEqual(4, result.Left);
+        AssertEqual(2, result.Top);
+        AssertTrue(result.Score > 0.999, $"Expected an exact structural match, received {result.Score:F4}.");
         return Task.CompletedTask;
     }
 
@@ -165,11 +225,54 @@ internal static class Program
             clientHeight: 720);
     }
 
+    private static GameFrame CreateGrayscaleFrame(
+        int width,
+        int height,
+        byte background,
+        byte[,] shape,
+        int left,
+        int top,
+        int brightnessOffset = 0)
+    {
+        byte[] pixels = new byte[checked(width * height * 4)];
+
+        for (int index = 0; index < width * height; index++)
+        {
+            int offset = index * 4;
+            pixels[offset] = background;
+            pixels[offset + 1] = background;
+            pixels[offset + 2] = background;
+            pixels[offset + 3] = 255;
+        }
+
+        for (int y = 0; y < shape.GetLength(0); y++)
+        {
+            for (int x = 0; x < shape.GetLength(1); x++)
+            {
+                byte value = checked((byte)(shape[y, x] + brightnessOffset));
+                int offset = checked(((top + y) * width + left + x) * 4);
+                pixels[offset] = value;
+                pixels[offset + 1] = value;
+                pixels[offset + 2] = value;
+            }
+        }
+
+        return new GameFrame(width, height, pixels);
+    }
+
     private static void AssertEqual<T>(T expected, T actual)
     {
         if (!EqualityComparer<T>.Default.Equals(expected, actual))
         {
             throw new InvalidOperationException($"Expected '{expected}', received '{actual}'.");
+        }
+    }
+
+    private static void AssertTrue(bool condition, string message)
+    {
+        if (!condition)
+        {
+            throw new InvalidOperationException(message);
         }
     }
 

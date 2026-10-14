@@ -11,6 +11,7 @@ The active rewrite is being developed on the `feature/csharp-rewrite` branch. Th
 - Parks the cursor safely inside the game while automation is active and restores its previous position when paused or closed.
 - Starts paused, persists settings, prevents duplicate instances, and keeps an activity log.
 - Uses independently scheduled automation modules so additional gameplay features can be migrated incrementally.
+- Captures the game client and supports shape-based grayscale template matching instead of relying only on exact pixel colors.
 
 ## Keyboard shortcuts
 

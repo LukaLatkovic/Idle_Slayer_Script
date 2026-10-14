@@ -14,9 +14,10 @@ The first vertical slice provides:
 - a paused-by-default startup state;
 - a live count of keyboard commands confirmed by the Windows adapter;
 - persisted interval settings and local activity logs;
+- client-only game frame capture with a lighting-tolerant grayscale template matcher;
 - dependency-free executable tests for the core safety behavior.
 
-This version intentionally does not copy the legacy pixel-color decision logic. It establishes a safe execution path first. Pixel observation and an optional direct game-state adapter can be added behind the same `IGameAdapter` boundary.
+This version intentionally does not copy the legacy single-pixel decision logic. It now provides typed BGRA frames and normalized luminance template matching so visual rules can use shapes and local contrast instead of one exact RGB value. An optional direct game-state adapter can still be added behind the same platform boundary.
 
 ## Projects
 
@@ -58,9 +59,9 @@ Because Unity evaluates the real cursor location for mouse input, the Windows ad
 
 ## Next migration slices
 
-1. Add frame capture and typed observations without embedding decisions in pixel-reading code.
+1. Build replayable, named observations on top of the frame capture and template matcher.
 2. Port bonus-stage, chest-hunt, and ascending-heights behavior one module at a time.
-3. Add replayable screenshots and regression tests for every observation rule.
+3. Add captured regression fixtures for every observation rule.
 4. Prototype an optional MelonLoader adapter for direct state and actions, pinned to a verified Idle Slayer version.
 5. Keep the external Windows adapter as the fallback when the internal game interface changes.
 
