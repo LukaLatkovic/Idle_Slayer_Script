@@ -20,18 +20,19 @@ The first vertical slice provides:
 - a shape-calibrated Silver Box collector that refuses to click when the claim icon is absent;
 - a tested Chest Hunt decision engine covering the normal, perfect, and missing-saver strategies;
 - automatic Chest Hunt execution, including click retries, partial-grid continuation, Saver strategy, Mimic and 2x handling, and result-screen closing;
+- automatic Bonus Stage 2 and Bonus Stage 3 execution, including both Spirit Boost routes, opening-slider handling, section retries, loot collection, failure closing, and the Skip Bonus Stage option;
 - the complete legacy General, Minigames, and Crafting configuration model;
 - one-time import from a legacy `IdleRunnerLogs/Settings.txt` file when upgrading;
 - dependency-free executable tests for the core safety behavior.
 
-This version intentionally does not copy the legacy single-pixel decision logic. It now provides typed BGRA frames and normalized luminance template matching so visual rules can use shapes and local contrast instead of one exact RGB value. An optional direct game-state adapter can still be added behind the same platform boundary.
+The visual stack provides typed BGRA frames and normalized luminance template matching for calibrated modules. The Bonus Stage compatibility port also preserves the original fixed-coordinate color markers because its movement routes are tied to the legacy 1280 x 720 layout. Every wait now has a timeout so a missing marker cannot block the runner forever. An optional direct game-state adapter can still be added behind the same platform boundary.
 
 ## Projects
 
 | Project | Purpose |
 | --- | --- |
 | `IdleRunner.Core` | Automation rules and adapter contracts. Targets .NET Standard 2.1 so it can be shared with a future .NET 6 mod adapter. |
-| `IdleRunner.Platform.Windows` | Idle Slayer window discovery and guarded Win32 keyboard input. |
+| `IdleRunner.Platform.Windows` | Idle Slayer window discovery and guarded Win32 mouse input. |
 | `IdleRunner.Desktop` | WPF control surface, settings persistence, and logging. |
 | `IdleRunner.Core.Tests` | Small executable test suite with no external test packages. |
 | `IdleRunner.InputProbe` | One-shot Windows input diagnostics and repeatable BMP frame capture against a running game build. |
@@ -59,9 +60,11 @@ Configuration changes are saved immediately. Options for modules that have not y
 
 Chest Hunt strategy and Lockpicking timing are connected to the calibrated 10 x 3 grid. The runner recognizes closed chests by shape, retries ignored clicks, classifies Mimic and 2x result signatures, opens the Saver according to the configured strategy, and closes the result screen. It can continue a partially opened grid by skipping opened cells and using the original application's no-Mimic fallback state when earlier outcomes are unavailable.
 
+Bonus Stage automation recognizes the legacy entrance, clears any opening slider, determines stage 2 or 3 and Spirit Boost state, then runs every section from `BonusStage.au3` with the original hold and wait timings. Jump commands use direct left-mouse holds because the current Unity build ignores synthetic keyboard commands. If **Skip bonus stage** is enabled, the runner waits for the failure result and closes it instead of starting the route.
+
 ## Safety behavior
 
-The application activates Idle Slayer only as a direct response to the user pressing **Start automation**. It does not repeatedly steal focus. Keyboard input is emitted only when all of these conditions are true:
+The application activates Idle Slayer only as a direct response to the user pressing **Start automation**. It does not repeatedly steal focus. Mouse input is emitted only when all of these conditions are true:
 
 1. automation was explicitly started;
 2. a visible, non-minimized window titled `Idle Slayer` exists;
@@ -74,8 +77,10 @@ The Silver Box collector has a separate calibration in **General**. Calibration 
 
 The Chest Hunt calibration in **Minigames** must be run while the yellow Saver marker and multiple closed chests are visible. It records both the Saver and the dominant closed-chest shape, verifies that exactly one Saver matches, and always leaves automation paused. Calibration itself never opens a chest. Once automation is started, visible Chest Hunts are handled automatically, including partially played grids.
 
+Bonus Stage automation requires the same 1280 x 720 client area as the legacy routes. It only starts after both entrance markers are visible, observes the foreground requirement before every mouse command, and pauses automation if a slider or input action cannot be completed safely.
+
 The Windows adapter checks foreground ownership again immediately before emitting input.
-Each jump-and-boost command holds both mouse buttons for 35 milliseconds so the Unity input loop can observe the pressed state before they are released. Targeted UI and Chest Hunt clicks use the legacy `mouse_event` path, hold for 100 milliseconds, and leave the cursor on the target until the next action because the installed Unity 6000.3 build evaluates the cursor position on a later frame. Keyboard `SendInput` and direct window messages were tested and ignored by the game.
+Each jump-and-boost command holds both mouse buttons for 35 milliseconds so the Unity input loop can observe the pressed state before they are released. Targeted UI, Chest Hunt, and Bonus Stage input uses the legacy `mouse_event` path and leaves the cursor on the target until the next action because the installed Unity 6000.3 build evaluates the cursor position on a later frame. Keyboard `SendInput` and direct window messages were tested and ignored by the game.
 
 Because Unity evaluates the real cursor location for mouse input, the Windows adapter saves the cursor position and parks it at the center during jump-and-boost input. Targeted clicks keep it on their target until the next action. The original position is restored when automation is paused, the game loses foreground focus, or the application exits normally.
 

@@ -4,7 +4,7 @@ using IdleRunner.Core;
 
 namespace IdleRunner.Platform.Windows;
 
-public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapter
+public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapter, IGameControlAdapter
 {
     private const string GameWindowTitle = "Idle Slayer";
     private const int InputPulseMilliseconds = 35;
@@ -158,6 +158,80 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
 
         return ClickClientPointAsync(window, clientX, clientY, cancellationToken);
     }
+
+    public async Task<bool> HoldJumpAsync(
+        int durationMilliseconds,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        nint window = _gameWindow;
+        if (!CanSendInput(window) || !TryParkCursor(window))
+        {
+            RestoreCursor();
+            return false;
+        }
+
+        NativeMethods.MouseEvent(MouseEventLeftDown, 0, 0, 0, nuint.Zero);
+        try
+        {
+            await Task.Delay(
+                Math.Max(InputPulseMilliseconds, durationMilliseconds),
+                cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            NativeMethods.MouseEvent(MouseEventLeftUp, 0, 0, 0, nuint.Zero);
+            if (NativeMethods.GetForegroundWindow() != window)
+            {
+                RestoreCursor();
+            }
+        }
+
+        return true;
+    }
+
+    public async Task<bool> DragClientPointAsync(
+        int startX,
+        int startY,
+        int endX,
+        int endY,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        nint window = _gameWindow;
+        if (!CanSendInput(window) || !TryMoveCursorToClientPoint(window, startX, startY))
+        {
+            RestoreCursor();
+            return false;
+        }
+
+        NativeMethods.MouseEvent(MouseEventLeftDown, 0, 0, 0, nuint.Zero);
+        try
+        {
+            await Task.Delay(50, cancellationToken).ConfigureAwait(false);
+            if (!TryMoveCursorToClientPoint(window, endX, endY))
+            {
+                return false;
+            }
+
+            await Task.Delay(100, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            NativeMethods.MouseEvent(MouseEventLeftUp, 0, 0, 0, nuint.Zero);
+            if (NativeMethods.GetForegroundWindow() != window)
+            {
+                RestoreCursor();
+            }
+        }
+
+        return true;
+    }
+
+    private static bool CanSendInput(nint window) =>
+        window != nint.Zero
+        && NativeMethods.IsWindow(window)
+        && NativeMethods.GetForegroundWindow() == window;
 
     private async Task<bool> ClickClientPointAsync(
         nint window,

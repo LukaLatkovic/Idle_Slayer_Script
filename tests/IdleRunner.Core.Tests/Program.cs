@@ -28,6 +28,8 @@ internal static class Program
             ("Chest Hunt result detection rejects decorative colors", ChestHuntResultDetectionRejectsDecorationsAsync),
             ("Chest Hunt session routes the Life Saver", ChestHuntSessionRoutesLifeSaverAsync),
             ("Chest Hunt session resumes an open grid", ChestHuntSessionResumesOpenGridAsync),
+            ("Bonus Stage visual states are recognized", BonusStageVisualStatesAreRecognizedAsync),
+            ("Bonus Stage 2 legacy routes are complete", BonusStage2LegacyRoutesAreCompleteAsync),
             ("Paused engine does not send input", PausedEngineDoesNotSendInputAsync),
             ("Missing game does not send input", MissingGameDoesNotSendInputAsync),
             ("Background game does not send input", BackgroundGameDoesNotSendInputAsync),
@@ -77,6 +79,51 @@ internal static class Program
         AssertEqual(9, normalized.PortalCyclePosition);
         AssertEqual(1, normalized.RequiredClientWidth);
         AssertEqual(1, normalized.RequiredClientHeight);
+        return Task.CompletedTask;
+    }
+
+    private static Task BonusStageVisualStatesAreRecognizedAsync()
+    {
+        byte[] pixels = new byte[1_280 * 720 * 4];
+        SetBgraPixel(pixels, 1_280, 660, 254, 0xFF, 0xE7, 0x37);
+        SetBgraPixel(pixels, 1_280, 638, 236, 0xFF, 0xBB, 0x31);
+        SetBgraPixel(pixels, 1_280, 180, 498, 0x16, 0x17, 0x1F);
+        SetBgraPixel(pixels, 1_280, 454, 91, 0xE1, 0xE0, 0xE2);
+        SetBgraPixel(pixels, 1_280, 775, 448, 0xFF, 0xFF, 0xFF);
+        SetBgraPixel(pixels, 1_280, 716, 600, 0xAF, 0x00, 0x00);
+        SetBgraPixel(pixels, 1_280, 615, 590, 0x00, 0xA4, 0x00);
+        GameFrame frame = new(1_280, 720, pixels);
+
+        AssertTrue(BonusStageVisualDetector.IsEntranceVisible(frame), "Expected the Bonus Stage entrance.");
+        AssertTrue(BonusStageVisualDetector.IsStage3(frame), "Expected Bonus Stage 3.");
+        AssertTrue(BonusStageVisualDetector.HasSpiritBoost(frame), "Expected Spirit Boost.");
+        AssertTrue(BonusStageVisualDetector.IsSliderVisible(frame), "Expected the opening slider.");
+        AssertTrue(BonusStageVisualDetector.IsFailureVisible(frame), "Expected the failure button.");
+        AssertTrue(BonusStageVisualDetector.IsStage3FailureVisible(frame), "Expected the retry state.");
+        return Task.CompletedTask;
+    }
+
+    private static Task BonusStage2LegacyRoutesAreCompleteAsync()
+    {
+        int[] normalCounts = [13, 23, 15, 16];
+        int[] spiritCounts = [11, 23, 15, 20];
+        int[] collectionCounts = [17, 20, 20, 23];
+        int[] spiritCollectionCounts = [19, 20, 20, 23];
+
+        for (int section = 1; section <= 4; section++)
+        {
+            BonusStage2SectionPlan normal = BonusStage2Routes.GetSection(false, section);
+            BonusStage2SectionPlan spirit = BonusStage2Routes.GetSection(true, section);
+            AssertEqual(normalCounts[section - 1], normal.Traversal.Count);
+            AssertEqual(spiritCounts[section - 1], spirit.Traversal.Count);
+            AssertEqual(collectionCounts[section - 1], normal.CollectionJumpCount);
+            AssertEqual(spiritCollectionCounts[section - 1], spirit.CollectionJumpCount);
+        }
+
+        AssertEqual(94, BonusStage2Routes.GetSection(false, 1).Traversal[0].HoldMilliseconds);
+        AssertEqual(5000, BonusStage2Routes.GetSection(false, 1).Traversal[12].WaitMilliseconds);
+        AssertEqual(531, BonusStage2Routes.GetSection(true, 2).Traversal[22].HoldMilliseconds);
+        AssertEqual(300, BonusStage2Routes.GetSection(true, 4).Traversal[19].WaitMilliseconds);
         return Task.CompletedTask;
     }
 

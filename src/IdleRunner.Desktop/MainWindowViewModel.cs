@@ -25,9 +25,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private readonly ChestHuntVisualService _chestHuntVisualService;
     private readonly AutomationEngine _engine;
     private readonly ChestHuntAutomationService _chestHuntAutomationService;
+    private readonly BonusStageAutomationService _bonusStageAutomationService;
     private readonly CancellationTokenSource _shutdown = new();
     private Task? _engineTask;
     private Task? _chestHuntTask;
+    private Task? _bonusStageTask;
     private string _statusTitle = "Paused";
     private string _statusDetail = "Waiting for the first Idle Slayer window check.";
     private Brush _statusBrush = PausedBrush;
@@ -87,6 +89,17 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             () => _engine.IsPaused,
             () => _engine.SetPaused(true),
             OnChestHuntClickExecuted);
+        _bonusStageAutomationService = new BonusStageAutomationService(
+            _gameAdapter,
+            windowsGameAdapter,
+            windowsGameAdapter,
+            _frameSource,
+            _log,
+            () => _settings,
+            () => _engine.IsPaused,
+            () => _engine.SetPaused(true),
+            OnMinigameInputExecuted,
+            _gameplayVisualGate.SetMinigameActive);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -327,6 +340,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     {
         _engineTask ??= _engine.RunAsync(_shutdown.Token);
         _chestHuntTask ??= _chestHuntAutomationService.RunAsync(_shutdown.Token);
+        _bonusStageTask ??= _bonusStageAutomationService.RunAsync(_shutdown.Token);
     }
 
     public void ReportInfo(string message)
@@ -521,6 +535,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             await _chestHuntTask.ConfigureAwait(true);
         }
 
+        if (_bonusStageTask is not null)
+        {
+            await _bonusStageTask.ConfigureAwait(true);
+        }
+
         _engine.SnapshotChanged -= OnSnapshotChanged;
         _engine.PauseChanged -= OnPauseChanged;
         _engine.ActionExecuted -= OnActionExecuted;
@@ -592,6 +611,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     }
 
     private void OnChestHuntClickExecuted()
+    {
+        OnMinigameInputExecuted();
+    }
+
+    private void OnMinigameInputExecuted()
     {
         RunOnUiThread(() =>
         {

@@ -12,6 +12,7 @@ public sealed class GameplayVisualGate : IAutomationGate, IDisposable
     private VisualObservationDefinition? _observation;
     private AutomationGateResult? _lastResult;
     private long _lastCheckTimestamp;
+    private int _isMinigameActive;
     private bool _disposed;
 
     public GameplayVisualGate(
@@ -24,6 +25,13 @@ public sealed class GameplayVisualGate : IAutomationGate, IDisposable
     }
 
     public bool HasCalibration => Volatile.Read(ref _observation) is not null;
+
+    public void SetMinigameActive(bool isActive)
+    {
+        Interlocked.Exchange(ref _isMinigameActive, isActive ? 1 : 0);
+        _lastResult = null;
+        _lastCheckTimestamp = 0;
+    }
 
     public async Task CalibrateAsync(CancellationToken cancellationToken)
     {
@@ -52,6 +60,12 @@ public sealed class GameplayVisualGate : IAutomationGate, IDisposable
         CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+
+        if (Volatile.Read(ref _isMinigameActive) != 0)
+        {
+            return AutomationGateResult.Blocked(
+                "A minigame route is active; normal gameplay actions are blocked.");
+        }
 
         VisualObservationDefinition? observation = Volatile.Read(ref _observation);
         if (observation is null)

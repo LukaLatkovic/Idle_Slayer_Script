@@ -600,7 +600,7 @@
                     <StackPanel MaxWidth="760" HorizontalAlignment="Left">
                         <TextBlock Text="MINIGAME STRATEGY" Style="{StaticResource SectionLabelStyle}" />
                         <TextBlock Margin="0,7,0,28"
-                                   Text="These options match the original configuration. Calibrated Chest Hunts run automatically, retry ignored clicks, and can continue from a partially opened grid."
+                                   Text="Chest Hunt and Bonus Stage automation run automatically when their visual entry state is recognized."
                                    Style="{StaticResource SettingDescriptionStyle}" />
 
                         <StackPanel Margin="0,0,0,30">
@@ -624,7 +624,7 @@
                                 <TextBlock Text="Skip bonus stage" Style="{StaticResource SettingTitleStyle}" />
                                 <TextBlock Text="Let the bonus-stage timer expire without running a stage sequence."
                                            Style="{StaticResource SettingDescriptionStyle}" />
-                                <TextBlock Text="MODULE PENDING" Style="{StaticResource PendingLabelStyle}" />
+                                <TextBlock Text="MODULE READY" Style="{StaticResource PendingLabelStyle}" />
                             </StackPanel>
                         </Grid>
 
@@ -637,7 +637,7 @@
                                 <TextBlock Text="No Lockpicking divinity" Style="{StaticResource SettingTitleStyle}" />
                                 <TextBlock Text="Use longer Chest Hunt waits when Lockpicking is unavailable."
                                            Style="{StaticResource SettingDescriptionStyle}" />
-                                <TextBlock Text="TIMING PORTED - VISUAL EXECUTOR PENDING"
+                                <TextBlock Text="MODULE READY"
                                            Style="{StaticResource PendingLabelStyle}" />
                             </StackPanel>
                         </Grid>
@@ -651,7 +651,7 @@
                                 <TextBlock Text="No Reinforced Crystal Saver" Style="{StaticResource SettingTitleStyle}" />
                                 <TextBlock Text="Adjust the Chest Hunt strategy when the permanent saver is unavailable."
                                            Style="{StaticResource SettingDescriptionStyle}" />
-                                <TextBlock Text="STRATEGY PORTED - VISUAL EXECUTOR PENDING"
+                                <TextBlock Text="MODULE READY"
                                            Style="{StaticResource PendingLabelStyle}" />
                             </StackPanel>
                         </Grid>
@@ -665,7 +665,7 @@
                                 <TextBlock Text="Perfect Chest Hunt strategy" Style="{StaticResource SettingTitleStyle}" />
                                 <TextBlock Text="Prioritize a perfect result by delaying the Life Saver until the 2x reward is found."
                                            Style="{StaticResource SettingDescriptionStyle}" />
-                                <TextBlock Text="STRATEGY PORTED - VISUAL EXECUTOR PENDING"
+                                <TextBlock Text="MODULE READY"
                                            Style="{StaticResource PendingLabelStyle}" />
                             </StackPanel>
                         </Grid>
