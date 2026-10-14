@@ -23,6 +23,10 @@ internal static class Program
             ("Chest Hunt special outcomes override the strategy", ChestHuntSpecialOutcomesAsync),
             ("Chest Hunt timing follows Lockpicking availability", ChestHuntTimingFollowsSettingsAsync),
             ("Chest Hunt calibration locates a moved Saver", ChestHuntCalibrationLocatesSaverAsync),
+            ("Chest Hunt observation rejects an already-open grid", ChestHuntObservationRejectsOpenGridAsync),
+            ("Chest Hunt outcomes require visual evidence", ChestHuntOutcomesRequireEvidenceAsync),
+            ("Chest Hunt result detection rejects decorative colors", ChestHuntResultDetectionRejectsDecorationsAsync),
+            ("Chest Hunt session routes the Life Saver", ChestHuntSessionRoutesLifeSaverAsync),
             ("Paused engine does not send input", PausedEngineDoesNotSendInputAsync),
             ("Missing game does not send input", MissingGameDoesNotSendInputAsync),
             ("Background game does not send input", BackgroundGameDoesNotSendInputAsync),
@@ -410,6 +414,120 @@ internal static class Program
         return Task.CompletedTask;
     }
 
+    private static Task ChestHuntObservationRejectsOpenGridAsync()
+    {
+        ChestHuntCalibration calibration = ChestHuntCalibration.FromFrame(
+            CreateChestHuntFrame(saverRow: 2, saverColumn: 5));
+        ChestHuntFrameObservation fresh = calibration.Analyze(
+            CreateChestHuntFrame(saverRow: 2, saverColumn: 5));
+        ChestHuntFrameObservation resumed = calibration.Analyze(
+            CreateChestHuntFrame(
+                saverRow: 2,
+                saverColumn: 5,
+                openedPositions: [(1, 1)]));
+
+        AssertEqual(true, fresh.IsActive);
+        AssertEqual(true, fresh.IsFresh);
+        AssertEqual(true, resumed.IsActive);
+        AssertEqual(false, resumed.IsFresh);
+        AssertEqual(1, resumed.OpenedNonSaverCount);
+        return Task.CompletedTask;
+    }
+
+    private static Task ChestHuntOutcomesRequireEvidenceAsync()
+    {
+        ChestHuntCalibration calibration = ChestHuntCalibration.FromFrame(
+            CreateChestHuntFrame(saverRow: 2, saverColumn: 5));
+        ChestHuntGridPosition openedPosition = ChestHuntCalibration.Positions[0];
+
+        AssertEqual(
+            ChestHuntOutcome.Unknown,
+            calibration.DetectOutcome(
+                CreateChestHuntFrame(saverRow: 2, saverColumn: 5),
+                openedPosition));
+        AssertEqual(
+            ChestHuntOutcome.Reward,
+            calibration.DetectOutcome(
+                CreateChestHuntFrame(
+                    saverRow: 2,
+                    saverColumn: 5,
+                    openedPositions: [(1, 1)]),
+                openedPosition));
+        AssertEqual(
+            ChestHuntOutcome.Mimic,
+            calibration.DetectOutcome(
+                CreateChestHuntFrame(
+                    saverRow: 2,
+                    saverColumn: 5,
+                    openedPositions: [(1, 1)],
+                    outcome: ChestHuntOutcome.Mimic),
+                openedPosition));
+        AssertEqual(
+            ChestHuntOutcome.DoubleReward,
+            calibration.DetectOutcome(
+                CreateChestHuntFrame(
+                    saverRow: 2,
+                    saverColumn: 5,
+                    openedPositions: [(1, 1)],
+                    outcome: ChestHuntOutcome.DoubleReward),
+                openedPosition));
+        AssertEqual(
+            ChestHuntOutcome.HuntEnded,
+            calibration.DetectOutcome(
+                CreateChestHuntFrame(
+                    saverRow: 2,
+                    saverColumn: 5,
+                    openedPositions: [(1, 1)],
+                    outcome: ChestHuntOutcome.HuntEnded),
+                openedPosition));
+        return Task.CompletedTask;
+    }
+
+    private static Task ChestHuntSessionRoutesLifeSaverAsync()
+    {
+        ChestHuntGridPosition saver = new(3, 3, 402, 463);
+        ChestHuntSession session = new(saver);
+        AutomationSettings settings = new() { PerfectChestHunt = false };
+
+        AssertEqual(new ChestHuntGridPosition(1, 1, 212, 273), session.NextPosition!.Value);
+        ChestHuntStep first = session.RecordOutcome(ChestHuntOutcome.Reward, settings);
+        AssertEqual(ChestHuntAction.ContinueOpeningGrid, first.Action);
+        AssertEqual(new ChestHuntGridPosition(1, 2, 307, 273), session.NextPosition!.Value);
+
+        ChestHuntStep second = session.RecordOutcome(ChestHuntOutcome.Reward, settings);
+        AssertEqual(ChestHuntAction.OpenLifeSaver, second.Action);
+        AssertEqual(true, session.IsOpeningLifeSaver);
+        AssertEqual(saver, session.NextPosition!.Value);
+
+        ChestHuntStep lifeSaver = session.RecordOutcome(ChestHuntOutcome.LifeSaver, settings);
+        AssertEqual(ChestHuntStrategyState.Normal, lifeSaver.NextState);
+        AssertEqual(new ChestHuntGridPosition(1, 3, 402, 273), session.NextPosition!.Value);
+
+        ChestHuntStep ended = session.RecordOutcome(ChestHuntOutcome.HuntEnded, settings);
+        AssertEqual(ChestHuntAction.Stop, ended.Action);
+        AssertEqual(true, session.IsComplete);
+        return Task.CompletedTask;
+    }
+
+    private static Task ChestHuntResultDetectionRejectsDecorationsAsync()
+    {
+        ChestHuntCalibration calibration = ChestHuntCalibration.FromFrame(
+            CreateChestHuntFrame(saverRow: 2, saverColumn: 5));
+        GameFrame decorations = CreateChestHuntFrame(
+            saverRow: 2,
+            saverColumn: 5,
+            paintDecorativeDecoys: true);
+        GameFrame perfectChest = CreateChestHuntFrame(
+            saverRow: 2,
+            saverColumn: 5,
+            paintPerfectChestSignature: true);
+
+        AssertEqual(false, calibration.IsHuntEndVisible(decorations));
+        AssertEqual(false, calibration.IsPerfectChestVisible(decorations));
+        AssertEqual(true, calibration.IsPerfectChestVisible(perfectChest));
+        return Task.CompletedTask;
+    }
+
     private static async Task PausedEngineDoesNotSendInputAsync()
     {
         FakeGameAdapter adapter = new(ReadySnapshot());
@@ -663,7 +781,13 @@ internal static class Program
         return new GameFrame(1_280, 720, pixels);
     }
 
-    private static GameFrame CreateChestHuntFrame(int saverRow, int saverColumn)
+    private static GameFrame CreateChestHuntFrame(
+        int saverRow,
+        int saverColumn,
+        IReadOnlyCollection<(int Row, int Column)>? openedPositions = null,
+        ChestHuntOutcome outcome = ChestHuntOutcome.Unknown,
+        bool paintDecorativeDecoys = false,
+        bool paintPerfectChestSignature = false)
     {
         byte[] pixels = CreateGrayscalePixels(1_280, 720, 25);
 
@@ -688,11 +812,73 @@ internal static class Program
 
         ChestHuntGridPosition saver = ChestHuntCalibration.Positions
             .Single(position => position.Row == saverRow && position.Column == saverColumn);
+
+        foreach ((int row, int column) in openedPositions ?? [])
+        {
+            ChestHuntGridPosition opened = ChestHuntCalibration.Positions
+                .Single(position => position.Row == row && position.Column == column);
+            PaintSolidRectangle(
+                pixels,
+                1_280,
+                opened.CenterX - 35,
+                opened.CenterY - 35,
+                70,
+                70,
+                red: 32,
+                green: 24,
+                blue: 16);
+        }
+
         PaintSaverCorner(pixels, saver.CenterX - 38, saver.CenterY - 38);
         PaintSaverCorner(pixels, saver.CenterX + 31, saver.CenterY - 38);
         PaintSaverCorner(pixels, saver.CenterX - 38, saver.CenterY + 31);
         PaintSaverCorner(pixels, saver.CenterX + 31, saver.CenterY + 31);
+
+        if (outcome == ChestHuntOutcome.Mimic)
+        {
+            PaintSolidRectangle(pixels, 1_280, 430, 207, 8, 8, 255, 0, 0);
+        }
+        else if (outcome == ChestHuntOutcome.DoubleReward)
+        {
+            PaintSolidRectangle(pixels, 1_280, 496, 206, 8, 8, 0, 255, 0);
+        }
+        else if (outcome == ChestHuntOutcome.HuntEnded)
+        {
+            PaintSolidRectangle(pixels, 1_280, 620, 680, 8, 8, 175, 0, 0);
+        }
+
+        if (paintDecorativeDecoys)
+        {
+            PaintSolidRectangle(pixels, 1_280, 620, 680, 8, 8, 120, 58, 49);
+            PaintSolidRectangle(pixels, 1_280, 450, 432, 8, 8, 255, 187, 49);
+        }
+
+        if (paintPerfectChestSignature)
+        {
+            PaintSolidRectangle(pixels, 1_280, 450, 432, 8, 8, 246, 143, 55);
+        }
+
         return new GameFrame(1_280, 720, pixels);
+    }
+
+    private static void PaintSolidRectangle(
+        byte[] pixels,
+        int frameWidth,
+        int left,
+        int top,
+        int width,
+        int height,
+        byte red,
+        byte green,
+        byte blue)
+    {
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                SetBgraPixel(pixels, frameWidth, left + x, top + y, red, green, blue);
+            }
+        }
     }
 
     private static void PaintSaverCorner(byte[] pixels, int left, int top)

@@ -18,6 +18,14 @@ public static class ChestHuntStrategy
             throw new ArgumentNullException(nameof(settings));
         }
 
+        if (outcome == ChestHuntOutcome.Unknown)
+        {
+            return new ChestHuntStep(
+                currentState,
+                ChestHuntAction.Stop,
+                "The opened chest outcome could not be recognized.");
+        }
+
         if (outcome == ChestHuntOutcome.HuntEnded)
         {
             return new ChestHuntStep(currentState, ChestHuntAction.Stop, "The Chest Hunt has ended.");

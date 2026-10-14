@@ -600,7 +600,7 @@
                     <StackPanel MaxWidth="760" HorizontalAlignment="Left">
                         <TextBlock Text="MINIGAME STRATEGY" Style="{StaticResource SectionLabelStyle}" />
                         <TextBlock Margin="0,7,0,28"
-                                   Text="These options match the original configuration. Chest Hunt decisions and timing are ported, and layout calibration is available while guarded execution is still being built."
+                                   Text="These options match the original configuration. Calibrated Chest Hunts run automatically from a fresh grid, with guarded result detection before every next click."
                                    Style="{StaticResource SettingDescriptionStyle}" />
 
                         <StackPanel Margin="0,0,0,30">

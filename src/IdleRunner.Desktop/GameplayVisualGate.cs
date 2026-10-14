@@ -82,7 +82,7 @@ public sealed class GameplayVisualGate : IAutomationGate, IDisposable
             if (frame is null)
             {
                 result = AutomationGateResult.Blocked(
-                    "A game frame could not be captured; input is paused for safety.");
+                    "A game frame could not be captured; normal gameplay actions are blocked for safety.");
             }
             else
             {
@@ -90,7 +90,7 @@ public sealed class GameplayVisualGate : IAutomationGate, IDisposable
                 result = observationResult.IsMatch
                     ? AutomationGateResult.Allowed("Normal gameplay HUD recognized.")
                     : AutomationGateResult.Blocked(
-                        "Normal gameplay HUD was not recognized; input is paused for safety.");
+                        "Normal gameplay HUD was not recognized; normal gameplay actions are blocked.");
             }
 
             _lastResult = result;

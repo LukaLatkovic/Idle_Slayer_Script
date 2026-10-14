@@ -24,8 +24,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private readonly SilverBoxVisualService _silverBoxVisualService;
     private readonly ChestHuntVisualService _chestHuntVisualService;
     private readonly AutomationEngine _engine;
+    private readonly ChestHuntAutomationService _chestHuntAutomationService;
     private readonly CancellationTokenSource _shutdown = new();
     private Task? _engineTask;
+    private Task? _chestHuntTask;
     private string _statusTitle = "Paused";
     private string _statusDetail = "Waiting for the first Idle Slayer window check.";
     private Brush _statusBrush = PausedBrush;
@@ -50,7 +52,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             _log.Info($"Imported legacy settings from {_settingsStore.ImportedLegacySettingsPath}.");
         }
 
-        _gameAdapter = new WindowsGameAdapter();
+        WindowsGameAdapter windowsGameAdapter = new();
+        _gameAdapter = windowsGameAdapter;
         _frameSource = new WindowsGameFrameSource();
         _gameplayVisualGate = new GameplayVisualGate(
             _frameSource,
@@ -74,6 +77,16 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _engine.SnapshotChanged += OnSnapshotChanged;
         _engine.PauseChanged += OnPauseChanged;
         _engine.ActionExecuted += OnActionExecuted;
+        _chestHuntAutomationService = new ChestHuntAutomationService(
+            _gameAdapter,
+            windowsGameAdapter,
+            _frameSource,
+            _chestHuntVisualService,
+            _log,
+            () => _settings,
+            () => _engine.IsPaused,
+            () => _engine.SetPaused(true),
+            OnChestHuntClickExecuted);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -136,7 +149,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         : "Icon not calibrated - collector will not click.";
 
     public string ChestHuntCalibrationStatus => _chestHuntVisualService.HasCalibration
-        ? "Saver layout calibrated - visual execution remains disabled."
+        ? "Ready - fresh Chest Hunts will run automatically."
         : "Not calibrated - capture while the yellow Saver marker is visible.";
 
     public string CommandCountLabel => _commandCount == 1
@@ -313,6 +326,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public void Start()
     {
         _engineTask ??= _engine.RunAsync(_shutdown.Token);
+        _chestHuntTask ??= _chestHuntAutomationService.RunAsync(_shutdown.Token);
     }
 
     public void ReportInfo(string message)
@@ -474,7 +488,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             _log.Info(
                 $"Chest Hunt layout calibrated. Saver located at row {saver.Position.Row}, "
                 + $"column {saver.Position.Column} with confidence {saver.Score:P1}.");
-            _log.Info("Chest Hunt visual execution remains disabled until outcome detection is complete.");
+            _log.Info("Chest Hunt automation is ready and will start from the next fresh grid.");
         }
         catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
         {
@@ -500,6 +514,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         if (_engineTask is not null)
         {
             await _engineTask.ConfigureAwait(true);
+        }
+
+        if (_chestHuntTask is not null)
+        {
+            await _chestHuntTask.ConfigureAwait(true);
         }
 
         _engine.SnapshotChanged -= OnSnapshotChanged;
@@ -569,6 +588,15 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                 _jumpPulseReported = true;
                 _log.Info("The first input pulse was sent to Idle Slayer.");
             }
+        });
+    }
+
+    private void OnChestHuntClickExecuted()
+    {
+        RunOnUiThread(() =>
+        {
+            _commandCount++;
+            OnPropertyChanged(nameof(CommandCountLabel));
         });
     }
 

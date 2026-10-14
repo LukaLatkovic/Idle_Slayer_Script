@@ -6,7 +6,7 @@ namespace IdleRunner.Desktop;
 
 public sealed class ChestHuntCalibrationStore
 {
-    private const int SchemaVersion = 1;
+    private const int SchemaVersion = 2;
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         WriteIndented = true
@@ -43,7 +43,11 @@ public sealed class ChestHuntCalibrationStore
                 LuminanceTemplate.FromLuminance(
                     document.TemplateWidth,
                     document.TemplateHeight,
-                    Convert.FromBase64String(document.SaverTemplate)));
+                    Convert.FromBase64String(document.SaverTemplate)),
+                LuminanceTemplate.FromLuminance(
+                    document.ClosedChestTemplateWidth,
+                    document.ClosedChestTemplateHeight,
+                    Convert.FromBase64String(document.ClosedChestTemplate)));
         }
         catch (Exception exception) when (exception is IOException
             or UnauthorizedAccessException
@@ -72,7 +76,11 @@ public sealed class ChestHuntCalibrationStore
             SchemaVersion = SchemaVersion,
             TemplateWidth = calibration.SaverTemplate.Width,
             TemplateHeight = calibration.SaverTemplate.Height,
-            SaverTemplate = Convert.ToBase64String(calibration.SaverTemplate.ToLuminanceArray())
+            SaverTemplate = Convert.ToBase64String(calibration.SaverTemplate.ToLuminanceArray()),
+            ClosedChestTemplateWidth = calibration.ClosedChestTemplate.Width,
+            ClosedChestTemplateHeight = calibration.ClosedChestTemplate.Height,
+            ClosedChestTemplate = Convert.ToBase64String(
+                calibration.ClosedChestTemplate.ToLuminanceArray())
         };
 
         File.WriteAllText(
@@ -89,5 +97,11 @@ public sealed class ChestHuntCalibrationStore
         public int TemplateHeight { get; set; }
 
         public string SaverTemplate { get; set; } = string.Empty;
+
+        public int ClosedChestTemplateWidth { get; set; }
+
+        public int ClosedChestTemplateHeight { get; set; }
+
+        public string ClosedChestTemplate { get; set; } = string.Empty;
     }
 }

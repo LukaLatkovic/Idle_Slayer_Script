@@ -4,7 +4,7 @@ using IdleRunner.Core;
 
 namespace IdleRunner.Platform.Windows;
 
-public sealed partial class WindowsGameAdapter : IGameAdapter
+public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapter
 {
     private const string GameWindowTitle = "Idle Slayer";
     private const int InputPulseMilliseconds = 35;
@@ -132,10 +132,39 @@ public sealed partial class WindowsGameAdapter : IGameAdapter
 
     private async Task<bool> ClickSilverBoxAsync(nint window, CancellationToken cancellationToken)
     {
-        if (!TryMoveCursorToClientPoint(
+        return await ClickClientPointAsync(
             window,
             SilverBoxCalibration.ClickX,
-            SilverBoxCalibration.ClickY))
+            SilverBoxCalibration.ClickY,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public Task<bool> ClickClientPointAsync(
+        int clientX,
+        int clientY,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        nint window = _gameWindow;
+        if (window == nint.Zero
+            || !NativeMethods.IsWindow(window)
+            || NativeMethods.GetForegroundWindow() != window)
+        {
+            RestoreCursor();
+            return Task.FromResult(false);
+        }
+
+        return ClickClientPointAsync(window, clientX, clientY, cancellationToken);
+    }
+
+    private async Task<bool> ClickClientPointAsync(
+        nint window,
+        int clientX,
+        int clientY,
+        CancellationToken cancellationToken)
+    {
+        if (!TryMoveCursorToClientPoint(window, clientX, clientY))
         {
             return false;
         }

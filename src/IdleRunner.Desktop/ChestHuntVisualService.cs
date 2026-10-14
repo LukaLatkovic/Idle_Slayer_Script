@@ -19,6 +19,8 @@ public sealed class ChestHuntVisualService
 
     public bool HasCalibration => Volatile.Read(ref _calibration) is not null;
 
+    public ChestHuntCalibration? Calibration => Volatile.Read(ref _calibration);
+
     public async Task<ChestHuntSaverMatch> CalibrateAsync(CancellationToken cancellationToken)
     {
         GameFrame frame = await _frameSource.CaptureAsync(cancellationToken).ConfigureAwait(false)
@@ -34,5 +36,18 @@ public sealed class ChestHuntVisualService
         _store.Save(calibration);
         Volatile.Write(ref _calibration, calibration);
         return saver;
+    }
+
+    public async Task<ChestHuntFrameObservation?> ObserveAsync(
+        CancellationToken cancellationToken)
+    {
+        ChestHuntCalibration? calibration = Volatile.Read(ref _calibration);
+        if (calibration is null)
+        {
+            return null;
+        }
+
+        GameFrame? frame = await _frameSource.CaptureAsync(cancellationToken).ConfigureAwait(false);
+        return frame is null ? null : calibration.Analyze(frame);
     }
 }
