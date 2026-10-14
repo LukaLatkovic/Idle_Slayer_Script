@@ -16,6 +16,7 @@ The first vertical slice provides:
 - persisted interval settings and local activity logs;
 - client-only game frame capture with a lighting-tolerant grayscale template matcher;
 - named visual observations that combine multiple independently scored anchors;
+- optional persisted gameplay-HUD calibration that blocks input when the normal HUD is not recognized;
 - the complete legacy General, Minigames, and Crafting configuration model;
 - one-time import from a legacy `IdleRunnerLogs/Settings.txt` file when upgrading;
 - dependency-free executable tests for the core safety behavior.
@@ -50,7 +51,7 @@ To capture the current game client for observation development, run:
 dotnet run --project tools/IdleRunner.InputProbe -- capture artifacts/gameplay.bmp
 ```
 
-The desktop application stores settings and logs under `%LOCALAPPDATA%\IdleRunner`.
+The desktop application stores settings, visual calibration, and logs under `%LOCALAPPDATA%\IdleRunner`.
 Configuration changes are saved immediately. Options for modules that have not yet been ported are marked `MODULE PENDING` in the desktop application.
 
 ## Safety behavior
@@ -61,6 +62,8 @@ The application activates Idle Slayer only as a direct response to the user pres
 2. a visible, non-minimized window titled `Idle Slayer` exists;
 3. that window is currently in the foreground;
 4. its client area is exactly 1280 x 720.
+
+The **Calibrate gameplay screen** action captures the normal gameplay HUD while menus are closed. Once calibrated, at least one of the two bottom action-slot anchors must remain visible before an input pulse can be sent. Calibration is optional and always leaves automation paused.
 
 The Windows adapter checks foreground ownership again immediately before calling `SendInput`.
 Each jump-and-boost command holds both mouse buttons for 35 milliseconds so the Unity input loop can observe the pressed state before they are released. Keyboard `SendInput` and direct window messages were tested against the installed Unity 6000.3 build and were ignored by the game; mouse input was confirmed from captured game frames.

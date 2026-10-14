@@ -16,11 +16,13 @@ internal static class Program
             ("Luminance matching tolerates brightness changes", LuminanceMatchingToleratesBrightnessAsync),
             ("Template search locates the strongest shape", TemplateSearchLocatesStrongestShapeAsync),
             ("Named observation requires multiple visual anchors", NamedObservationRequiresMultipleAnchorsAsync),
+            ("Gameplay HUD calibration recognizes its source frame", GameplayHudCalibrationRecognizesSourceAsync),
             ("Paused engine does not send input", PausedEngineDoesNotSendInputAsync),
             ("Missing game does not send input", MissingGameDoesNotSendInputAsync),
             ("Background game does not send input", BackgroundGameDoesNotSendInputAsync),
             ("Wrong client size does not send input", WrongClientSizeDoesNotSendInputAsync),
             ("Ready game receives input", ReadyGameReceivesInputAsync),
+            ("Visual gate blocks input", VisualGateBlocksInputAsync),
             ("Module interval prevents immediate duplicate input", ModuleIntervalPreventsDuplicateInputAsync),
             ("Rejected input is not reported as executed", RejectedInputIsNotReportedAsync)
         ];
@@ -216,6 +218,22 @@ internal static class Program
         return Task.CompletedTask;
     }
 
+    private static Task GameplayHudCalibrationRecognizesSourceAsync()
+    {
+        byte[] pixels = CreateGrayscalePixels(1_280, 720, 20);
+        PaintCheckerPattern(pixels, 1_280, left: 76, top: 580, width: 80, height: 80, 45, 185);
+        PaintCheckerPattern(pixels, 1_280, left: 1_125, top: 580, width: 80, height: 80, 70, 220);
+        GameFrame sourceFrame = new(1_280, 720, pixels);
+        GameFrame blankFrame = new(1_280, 720, CreateGrayscalePixels(1_280, 720, 20));
+
+        GameplayHudCalibration calibration = GameplayHudCalibration.FromFrame(sourceFrame);
+        VisualObservationDefinition observation = calibration.CreateObservation();
+
+        AssertTrue(observation.Evaluate(sourceFrame).IsMatch, "Expected the calibrated HUD to match.");
+        AssertEqual(false, observation.Evaluate(blankFrame).IsMatch);
+        return Task.CompletedTask;
+    }
+
     private static async Task PausedEngineDoesNotSendInputAsync()
     {
         FakeGameAdapter adapter = new(ReadySnapshot());
@@ -284,6 +302,19 @@ internal static class Program
         AssertEqual(1, adapter.ExecutionCount);
         AssertEqual(AutomationAction.JumpAndBoost, adapter.LastAction);
         AssertEqual(1, executedActionCount);
+    }
+
+    private static async Task VisualGateBlocksInputAsync()
+    {
+        FakeGameAdapter adapter = new(ReadySnapshot());
+        FakeAutomationGate gate = new(AutomationGateResult.Blocked("Blocked by test gate."));
+        AutomationEngine engine = new(adapter, new FakeLog(), () => Settings, gate: gate);
+        engine.SetPaused(false);
+
+        await engine.RunOnceAsync(Settings);
+
+        AssertEqual(1, gate.CheckCount);
+        AssertEqual(0, adapter.ExecutionCount);
     }
 
     private static async Task RejectedInputIsNotReportedAsync()
@@ -377,6 +408,45 @@ internal static class Program
         return new GameFrame(width, height, pixels);
     }
 
+    private static byte[] CreateGrayscalePixels(int width, int height, byte value)
+    {
+        byte[] pixels = new byte[checked(width * height * 4)];
+
+        for (int index = 0; index < width * height; index++)
+        {
+            int offset = index * 4;
+            pixels[offset] = value;
+            pixels[offset + 1] = value;
+            pixels[offset + 2] = value;
+            pixels[offset + 3] = 255;
+        }
+
+        return pixels;
+    }
+
+    private static void PaintCheckerPattern(
+        byte[] pixels,
+        int frameWidth,
+        int left,
+        int top,
+        int width,
+        int height,
+        byte dark,
+        byte light)
+    {
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                byte value = ((x / 8) + (y / 8)) % 2 == 0 ? dark : light;
+                int offset = checked(((top + y) * frameWidth + left + x) * 4);
+                pixels[offset] = value;
+                pixels[offset + 1] = value;
+                pixels[offset + 2] = value;
+            }
+        }
+    }
+
     private static void AssertEqual<T>(T expected, T actual)
     {
         if (!EqualityComparer<T>.Default.Equals(expected, actual))
@@ -443,6 +513,28 @@ internal static class Program
 
         public void Error(string message, Exception exception)
         {
+        }
+    }
+
+    private sealed class FakeAutomationGate : IAutomationGate
+    {
+        private readonly AutomationGateResult _result;
+
+        public FakeAutomationGate(AutomationGateResult result)
+        {
+            _result = result;
+        }
+
+        public int CheckCount { get; private set; }
+
+        public Task<AutomationGateResult> CheckAsync(
+            GameSnapshot snapshot,
+            AutomationSettings settings,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            CheckCount++;
+            return Task.FromResult(_result);
         }
     }
 }

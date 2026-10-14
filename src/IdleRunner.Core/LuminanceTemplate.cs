@@ -42,6 +42,38 @@ public sealed class LuminanceTemplate
         return new LuminanceTemplate(region.Width, region.Height, luminance);
     }
 
+    public static LuminanceTemplate FromLuminance(int width, int height, byte[] luminance)
+    {
+        if (width <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(width));
+        }
+
+        if (height <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(height));
+        }
+
+        if (luminance is null)
+        {
+            throw new ArgumentNullException(nameof(luminance));
+        }
+
+        if (luminance.Length != checked(width * height))
+        {
+            throw new ArgumentException("The luminance buffer has an unexpected length.", nameof(luminance));
+        }
+
+        byte[] copy = (byte[])luminance.Clone();
+        EnsureTemplateHasContrast(copy);
+        return new LuminanceTemplate(width, height, copy);
+    }
+
+    public byte[] ToLuminanceArray()
+    {
+        return (byte[])_luminance.Clone();
+    }
+
     internal byte GetLuminance(int x, int y)
     {
         return _luminance[checked(y * Width + x)];

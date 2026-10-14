@@ -53,6 +53,11 @@ public partial class MainWindow : Window
         await _viewModel.ToggleAutomationAsync();
     }
 
+    private async void OnCalibrateGameplayClick(object sender, RoutedEventArgs e)
+    {
+        await _viewModel.CalibrateGameplayAsync();
+    }
+
     private async void OnHotkeyToggleRequested(object? sender, EventArgs e)
     {
         await _viewModel.ToggleAutomationAsync();

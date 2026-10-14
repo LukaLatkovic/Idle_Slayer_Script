@@ -20,6 +20,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private readonly DesktopAutomationLog _log;
     private readonly IGameAdapter _gameAdapter;
     private readonly IGameFrameSource _frameSource;
+    private readonly GameplayVisualGate _gameplayVisualGate;
     private readonly AutomationEngine _engine;
     private readonly CancellationTokenSource _shutdown = new();
     private Task? _engineTask;
@@ -31,6 +32,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private int _commandCount;
     private GameSnapshot? _lastSnapshot;
     private bool _frameCaptureReported;
+    private bool _isCalibrationEnabled = true;
 
     public MainWindowViewModel(Dispatcher dispatcher)
     {
@@ -47,7 +49,14 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
         _gameAdapter = new WindowsGameAdapter();
         _frameSource = new WindowsGameFrameSource();
-        _engine = new AutomationEngine(_gameAdapter, _log, () => _settings);
+        _gameplayVisualGate = new GameplayVisualGate(
+            _frameSource,
+            new GameplayCalibrationStore());
+        _engine = new AutomationEngine(
+            _gameAdapter,
+            _log,
+            () => _settings,
+            gate: _gameplayVisualGate);
         _engine.SnapshotChanged += OnSnapshotChanged;
         _engine.PauseChanged += OnPauseChanged;
         _engine.ActionExecuted += OnActionExecuted;
@@ -97,6 +106,16 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         get => _isPrimaryActionEnabled;
         private set => SetField(ref _isPrimaryActionEnabled, value);
     }
+
+    public bool IsCalibrationEnabled
+    {
+        get => _isCalibrationEnabled;
+        private set => SetField(ref _isCalibrationEnabled, value);
+    }
+
+    public string GameplayCalibrationStatus => _gameplayVisualGate.HasCalibration
+        ? "Calibrated - visual input safety is active."
+        : "Not calibrated - visual input safety is inactive.";
 
     public string CommandCountLabel => _commandCount == 1
         ? "1 command sent"
@@ -317,6 +336,46 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
     }
 
+    public async Task CalibrateGameplayAsync()
+    {
+        if (!IsCalibrationEnabled)
+        {
+            return;
+        }
+
+        IsCalibrationEnabled = false;
+        _engine.SetPaused(true);
+
+        try
+        {
+            await _gameAdapter.ReleaseInputAsync(_shutdown.Token);
+
+            bool activated = await _gameAdapter.TryActivateAsync(_shutdown.Token);
+            if (!activated)
+            {
+                _log.Info("Idle Slayer could not be activated for gameplay calibration.");
+                return;
+            }
+
+            await _gameplayVisualGate.CalibrateAsync(_shutdown.Token);
+            OnPropertyChanged(nameof(GameplayCalibrationStatus));
+            _log.Info("Gameplay HUD calibrated. Visual input safety is now active.");
+            _log.Info("Automation remains paused; press Start automation when ready.");
+        }
+        catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            _log.Error("Gameplay calibration failed.", exception);
+        }
+        finally
+        {
+            await _gameAdapter.ReleaseInputAsync(CancellationToken.None);
+            IsCalibrationEnabled = true;
+        }
+    }
+
     public async Task ShutdownAsync()
     {
         _engine.SetPaused(true);
@@ -333,6 +392,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _engine.PauseChanged -= OnPauseChanged;
         _engine.ActionExecuted -= OnActionExecuted;
         _log.EntryWritten -= OnLogEntryWritten;
+        _gameplayVisualGate.Dispose();
         _shutdown.Dispose();
     }
 

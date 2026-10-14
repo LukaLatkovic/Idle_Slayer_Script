@@ -8,6 +8,7 @@ public sealed class AutomationEngine
     private readonly IAutomationLog _log;
     private readonly Func<AutomationSettings> _settingsProvider;
     private readonly IReadOnlyList<IAutomationModule> _modules;
+    private readonly IAutomationGate? _gate;
     private readonly Dictionary<IAutomationModule, long> _nextRunTimestamps = new();
     private readonly object _statusLock = new();
     private int _isPaused = 1;
@@ -17,12 +18,14 @@ public sealed class AutomationEngine
         IGameAdapter gameAdapter,
         IAutomationLog log,
         Func<AutomationSettings> settingsProvider,
-        IEnumerable<IAutomationModule>? modules = null)
+        IEnumerable<IAutomationModule>? modules = null,
+        IAutomationGate? gate = null)
     {
         _gameAdapter = gameAdapter ?? throw new ArgumentNullException(nameof(gameAdapter));
         _log = log ?? throw new ArgumentNullException(nameof(log));
         _settingsProvider = settingsProvider ?? throw new ArgumentNullException(nameof(settingsProvider));
         _modules = (modules ?? [new JumpAndBoostModule()]).ToArray();
+        _gate = gate;
 
         if (_modules.Count == 0)
         {
@@ -98,12 +101,27 @@ public sealed class AutomationEngine
             .ConfigureAwait(false);
 
         SnapshotChanged?.Invoke(this, snapshot);
-        LogStatusChange(snapshot.Describe(normalizedSettings));
 
-        if (IsPaused)
+        if (IsPaused || !snapshot.CanReceiveInput(normalizedSettings))
         {
+            LogStatusChange(snapshot.Describe(normalizedSettings));
             return snapshot;
         }
+
+        if (_gate is not null)
+        {
+            AutomationGateResult gateResult = await _gate
+                .CheckAsync(snapshot, normalizedSettings, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (!gateResult.AllowsActions)
+            {
+                LogStatusChange(gateResult.Description);
+                return snapshot;
+            }
+        }
+
+        LogStatusChange(snapshot.Describe(normalizedSettings));
 
         long now = Stopwatch.GetTimestamp();
 
