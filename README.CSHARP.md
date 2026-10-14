@@ -16,6 +16,8 @@ The first vertical slice provides:
 - persisted interval settings and local activity logs;
 - client-only game frame capture with a lighting-tolerant grayscale template matcher;
 - named visual observations that combine multiple independently scored anchors;
+- the complete legacy General, Minigames, and Crafting configuration model;
+- one-time import from a legacy `IdleRunnerLogs/Settings.txt` file when upgrading;
 - dependency-free executable tests for the core safety behavior.
 
 This version intentionally does not copy the legacy single-pixel decision logic. It now provides typed BGRA frames and normalized luminance template matching so visual rules can use shapes and local contrast instead of one exact RGB value. An optional direct game-state adapter can still be added behind the same platform boundary.
@@ -49,6 +51,7 @@ dotnet run --project tools/IdleRunner.InputProbe -- capture artifacts/gameplay.b
 ```
 
 The desktop application stores settings and logs under `%LOCALAPPDATA%\IdleRunner`.
+Configuration changes are saved immediately. Options for modules that have not yet been ported are marked `MODULE PENDING` in the desktop application.
 
 ## Safety behavior
 

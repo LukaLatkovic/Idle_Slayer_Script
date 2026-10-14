@@ -12,6 +12,7 @@ The active rewrite is being developed on the `feature/csharp-rewrite` branch. Th
 - Starts paused, persists settings, prevents duplicate instances, and keeps an activity log.
 - Uses independently scheduled automation modules so additional gameplay features can be migrated incrementally.
 - Captures the game client and supports shape-based grayscale template matching instead of relying only on exact pixel colors.
+- Preserves and migrates the original General, Minigames, and Crafting settings while modules are ported incrementally.
 
 ## Keyboard shortcuts
 

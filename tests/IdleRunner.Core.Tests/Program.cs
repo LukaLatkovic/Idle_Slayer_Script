@@ -11,6 +11,7 @@ internal static class Program
         (string Name, Func<Task> Test)[] tests =
         [
             ("Settings are normalized", SettingsAreNormalizedAsync),
+            ("Legacy settings are mapped", LegacySettingsAreMappedAsync),
             ("Game frame preserves BGRA pixels", GameFramePreservesPixelsAsync),
             ("Luminance matching tolerates brightness changes", LuminanceMatchingToleratesBrightnessAsync),
             ("Template search locates the strongest shape", TemplateSearchLocatesStrongestShapeAsync),
@@ -49,13 +50,53 @@ internal static class Program
         AutomationSettings normalized = new AutomationSettings
         {
             JumpIntervalMilliseconds = -10,
+            AutoBuyIntervalMinutes = 0,
+            AutoAscendIntervalMinutes = int.MaxValue,
+            PortalCyclePosition = 20,
             RequiredClientWidth = 0,
             RequiredClientHeight = -1
         }.Normalize();
 
         AssertEqual(AutomationSettings.MinimumIntervalMilliseconds, normalized.JumpIntervalMilliseconds);
+        AssertEqual(AutomationSettings.MinimumTimerMinutes, normalized.AutoBuyIntervalMinutes);
+        AssertEqual(AutomationSettings.MaximumTimerMinutes, normalized.AutoAscendIntervalMinutes);
+        AssertEqual(9, normalized.PortalCyclePosition);
         AssertEqual(1, normalized.RequiredClientWidth);
         AssertEqual(1, normalized.RequiredClientHeight);
+        return Task.CompletedTask;
+    }
+
+    private static Task LegacySettingsAreMappedAsync()
+    {
+        string[] lines =
+        [
+            "[Settings]",
+            "iAutoBuyTimer=1",
+            "iAutoAscendTimer=10",
+            "bAutoAscendState=False",
+            "bAutoBuyUpgradeState=True",
+            "bCraftSoulBonusState=False",
+            "bSkipBonusStageState=False",
+            "bCraftRagePillState=False",
+            "bCirclePortalsState=False",
+            "iJumpSliderValue=150",
+            "bNoLockpickingState=True",
+            "iCirclePortalsCount=1",
+            "bDimensionalState=False",
+            "bBiDimensionalState=False",
+            "bDisableRageState=False",
+            "bNoReinforcedCrystalSaverState=False",
+            "bPerfectChestHuntState=True"
+        ];
+
+        AutomationSettings settings = LegacyAutomationSettingsParser.Parse(lines);
+
+        AssertEqual(1, settings.AutoBuyIntervalMinutes);
+        AssertEqual(true, settings.AutoBuyUpgradesEnabled);
+        AssertEqual(true, settings.NoLockpicking);
+        AssertEqual(true, settings.PerfectChestHunt);
+        AssertEqual(1, settings.PortalCyclePosition);
+        AssertEqual(150, settings.JumpIntervalMilliseconds);
         return Task.CompletedTask;
     }
 

@@ -22,17 +22,33 @@ public sealed class AutomationSettingsStore
         _settingsPath = Path.Combine(applicationDirectory, "settings.json");
     }
 
+    public string? ImportedLegacySettingsPath { get; private set; }
+
     public AutomationSettings Load()
     {
         try
         {
             if (!File.Exists(_settingsPath))
             {
-                return new AutomationSettings();
+                return LoadLegacySettingsOrDefault();
             }
 
             string json = File.ReadAllText(_settingsPath);
-            return JsonSerializer.Deserialize<AutomationSettings>(json) ?? new AutomationSettings();
+            AutomationSettings settings = JsonSerializer.Deserialize<AutomationSettings>(json)
+                ?? new AutomationSettings();
+
+            using JsonDocument document = JsonDocument.Parse(json);
+            if (!document.RootElement.TryGetProperty(nameof(AutomationSettings.SettingsSchemaVersion), out _)
+                && TryLoadLegacySettings(out AutomationSettings? legacySettings, out string? legacyPath))
+            {
+                legacySettings.RequiredClientWidth = settings.RequiredClientWidth;
+                legacySettings.RequiredClientHeight = settings.RequiredClientHeight;
+                ImportedLegacySettingsPath = legacyPath;
+                Save(legacySettings);
+                return legacySettings;
+            }
+
+            return settings.Normalize();
         }
         catch (IOException)
         {
@@ -46,6 +62,46 @@ public sealed class AutomationSettingsStore
         {
             return new AutomationSettings();
         }
+    }
+
+    private AutomationSettings LoadLegacySettingsOrDefault()
+    {
+        if (!TryLoadLegacySettings(out AutomationSettings? settings, out string? legacyPath))
+        {
+            return new AutomationSettings();
+        }
+
+        ImportedLegacySettingsPath = legacyPath;
+        Save(settings);
+        return settings;
+    }
+
+    private static bool TryLoadLegacySettings(
+        out AutomationSettings settings,
+        out string? legacyPath)
+    {
+        string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        string[] candidates =
+        [
+            Path.Combine(Environment.CurrentDirectory, "IdleRunnerLogs", "Settings.txt"),
+            Path.Combine(userProfile, "Downloads", "IdleRunnerLogs", "Settings.txt")
+        ];
+
+        foreach (string candidate in candidates.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (!File.Exists(candidate))
+            {
+                continue;
+            }
+
+            settings = LegacyAutomationSettingsParser.Parse(File.ReadLines(candidate));
+            legacyPath = candidate;
+            return true;
+        }
+
+        settings = new AutomationSettings();
+        legacyPath = null;
+        return false;
     }
 
     public void Save(AutomationSettings settings)

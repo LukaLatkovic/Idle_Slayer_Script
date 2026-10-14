@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -38,6 +39,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _settings = _settingsStore.Load().Normalize();
         _log = new DesktopAutomationLog();
         _log.EntryWritten += OnLogEntryWritten;
+
+        if (_settingsStore.ImportedLegacySettingsPath is not null)
+        {
+            _log.Info($"Imported legacy settings from {_settingsStore.ImportedLegacySettingsPath}.");
+        }
+
         _gameAdapter = new WindowsGameAdapter();
         _frameSource = new WindowsGameFrameSource();
         _engine = new AutomationEngine(_gameAdapter, _log, () => _settings);
@@ -110,12 +117,148 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             }
 
             _settings.JumpIntervalMilliseconds = normalized;
+            PersistSettings();
             OnPropertyChanged();
             OnPropertyChanged(nameof(JumpIntervalLabel));
         }
     }
 
     public string JumpIntervalLabel => $"{JumpIntervalMilliseconds} ms";
+
+    public bool AutoBuyUpgradesEnabled
+    {
+        get => _settings.AutoBuyUpgradesEnabled;
+        set => SetPersistedSetting(
+            _settings.AutoBuyUpgradesEnabled,
+            value,
+            next => _settings.AutoBuyUpgradesEnabled = next);
+    }
+
+    public int AutoBuyIntervalMinutes
+    {
+        get => _settings.AutoBuyIntervalMinutes;
+        set => SetPersistedSetting(
+            _settings.AutoBuyIntervalMinutes,
+            NormalizeTimerMinutes(value),
+            next => _settings.AutoBuyIntervalMinutes = next);
+    }
+
+    public bool AutoAscendEnabled
+    {
+        get => _settings.AutoAscendEnabled;
+        set => SetPersistedSetting(
+            _settings.AutoAscendEnabled,
+            value,
+            next => _settings.AutoAscendEnabled = next);
+    }
+
+    public int AutoAscendIntervalMinutes
+    {
+        get => _settings.AutoAscendIntervalMinutes;
+        set => SetPersistedSetting(
+            _settings.AutoAscendIntervalMinutes,
+            NormalizeTimerMinutes(value),
+            next => _settings.AutoAscendIntervalMinutes = next);
+    }
+
+    public bool CirclePortalsEnabled
+    {
+        get => _settings.CirclePortalsEnabled;
+        set => SetPersistedSetting(
+            _settings.CirclePortalsEnabled,
+            value,
+            next => _settings.CirclePortalsEnabled = next);
+    }
+
+    public int PortalCyclePosition
+    {
+        get => _settings.PortalCyclePosition;
+        set => SetPersistedSetting(
+            _settings.PortalCyclePosition,
+            Math.Max(1, Math.Min(9, value)),
+            next => _settings.PortalCyclePosition = next);
+    }
+
+    public bool DisableRageWithoutSoulBonus
+    {
+        get => _settings.DisableRageWithoutSoulBonus;
+        set => SetPersistedSetting(
+            _settings.DisableRageWithoutSoulBonus,
+            value,
+            next => _settings.DisableRageWithoutSoulBonus = next);
+    }
+
+    public bool SkipBonusStage
+    {
+        get => _settings.SkipBonusStage;
+        set => SetPersistedSetting(
+            _settings.SkipBonusStage,
+            value,
+            next => _settings.SkipBonusStage = next);
+    }
+
+    public bool NoLockpicking
+    {
+        get => _settings.NoLockpicking;
+        set => SetPersistedSetting(
+            _settings.NoLockpicking,
+            value,
+            next => _settings.NoLockpicking = next);
+    }
+
+    public bool NoReinforcedCrystalSaver
+    {
+        get => _settings.NoReinforcedCrystalSaver;
+        set => SetPersistedSetting(
+            _settings.NoReinforcedCrystalSaver,
+            value,
+            next => _settings.NoReinforcedCrystalSaver = next);
+    }
+
+    public bool PerfectChestHunt
+    {
+        get => _settings.PerfectChestHunt;
+        set => SetPersistedSetting(
+            _settings.PerfectChestHunt,
+            value,
+            next => _settings.PerfectChestHunt = next);
+    }
+
+    public bool CraftSoulsCompass
+    {
+        get => _settings.CraftSoulsCompass;
+        set => SetPersistedSetting(
+            _settings.CraftSoulsCompass,
+            value,
+            next => _settings.CraftSoulsCompass = next);
+    }
+
+    public bool CraftRagePill
+    {
+        get => _settings.CraftRagePill;
+        set => SetPersistedSetting(
+            _settings.CraftRagePill,
+            value,
+            next => _settings.CraftRagePill = next);
+    }
+
+    public bool CraftDimensionalStaff
+    {
+        get => _settings.CraftDimensionalStaff;
+        set => SetPersistedSetting(
+            _settings.CraftDimensionalStaff,
+            value,
+            next => _settings.CraftDimensionalStaff = next);
+    }
+
+    public bool CraftBidimensionalStaff
+    {
+        get => _settings.CraftBidimensionalStaff;
+        set => SetPersistedSetting(
+            _settings.CraftBidimensionalStaff,
+            value,
+            next => _settings.CraftBidimensionalStaff = next);
+    }
 
     public void Start()
     {
@@ -178,7 +321,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     {
         _engine.SetPaused(true);
         await _gameAdapter.ReleaseInputAsync(CancellationToken.None);
-        _settingsStore.Save(_settings.Normalize());
+        PersistSettings();
         _shutdown.Cancel();
 
         if (_engineTask is not null)
@@ -312,6 +455,43 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         field = value;
         OnPropertyChanged(propertyName);
         return true;
+    }
+
+    private void SetPersistedSetting<T>(
+        T currentValue,
+        T nextValue,
+        Action<T> assign,
+        [CallerMemberName] string? propertyName = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(currentValue, nextValue))
+        {
+            return;
+        }
+
+        assign(nextValue);
+        PersistSettings();
+        OnPropertyChanged(propertyName);
+    }
+
+    private void PersistSettings()
+    {
+        try
+        {
+            _settingsStore.Save(_settings.Normalize());
+        }
+        catch (Exception exception) when (exception is IOException
+            or UnauthorizedAccessException
+            or System.Text.Json.JsonException)
+        {
+            _log.Error("Settings could not be saved.", exception);
+        }
+    }
+
+    private static int NormalizeTimerMinutes(int value)
+    {
+        return Math.Max(
+            AutomationSettings.MinimumTimerMinutes,
+            Math.Min(AutomationSettings.MaximumTimerMinutes, value));
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
