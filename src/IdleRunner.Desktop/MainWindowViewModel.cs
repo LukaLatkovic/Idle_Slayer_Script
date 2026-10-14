@@ -21,6 +21,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private readonly IGameAdapter _gameAdapter;
     private readonly IGameFrameSource _frameSource;
     private readonly GameplayVisualGate _gameplayVisualGate;
+    private readonly SilverBoxVisualService _silverBoxVisualService;
     private readonly AutomationEngine _engine;
     private readonly CancellationTokenSource _shutdown = new();
     private Task? _engineTask;
@@ -33,6 +34,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private GameSnapshot? _lastSnapshot;
     private bool _frameCaptureReported;
     private bool _isCalibrationEnabled = true;
+    private bool _jumpPulseReported;
 
     public MainWindowViewModel(Dispatcher dispatcher)
     {
@@ -52,10 +54,18 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _gameplayVisualGate = new GameplayVisualGate(
             _frameSource,
             new GameplayCalibrationStore());
+        _silverBoxVisualService = new SilverBoxVisualService(
+            _frameSource,
+            new SilverBoxCalibrationStore());
         _engine = new AutomationEngine(
             _gameAdapter,
             _log,
             () => _settings,
+            modules:
+            [
+                new SilverBoxModule(_frameSource, () => _silverBoxVisualService.Observation),
+                new JumpAndBoostModule()
+            ],
             gate: _gameplayVisualGate);
         _engine.SnapshotChanged += OnSnapshotChanged;
         _engine.PauseChanged += OnPauseChanged;
@@ -117,6 +127,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         ? "Calibrated - visual input safety is active."
         : "Not calibrated - visual input safety is inactive.";
 
+    public string SilverBoxCalibrationStatus => _silverBoxVisualService.HasCalibration
+        ? "Icon calibrated - collector is ready."
+        : "Icon not calibrated - collector will not click.";
+
     public string CommandCountLabel => _commandCount == 1
         ? "1 command sent"
         : $"{_commandCount:N0} commands sent";
@@ -143,6 +157,15 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     }
 
     public string JumpIntervalLabel => $"{JumpIntervalMilliseconds} ms";
+
+    public bool CollectSilverBoxesEnabled
+    {
+        get => _settings.CollectSilverBoxesEnabled;
+        set => SetPersistedSetting(
+            _settings.CollectSilverBoxesEnabled,
+            value,
+            next => _settings.CollectSilverBoxesEnabled = next);
+    }
 
     public bool AutoBuyUpgradesEnabled
     {
@@ -376,6 +399,46 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
     }
 
+    public async Task CalibrateSilverBoxAsync()
+    {
+        if (!IsCalibrationEnabled)
+        {
+            return;
+        }
+
+        IsCalibrationEnabled = false;
+        _engine.SetPaused(true);
+
+        try
+        {
+            await _gameAdapter.ReleaseInputAsync(_shutdown.Token);
+
+            bool activated = await _gameAdapter.TryActivateAsync(_shutdown.Token);
+            if (!activated)
+            {
+                _log.Info("Idle Slayer could not be activated for Silver Box calibration.");
+                return;
+            }
+
+            await _silverBoxVisualService.CalibrateAsync(_shutdown.Token);
+            OnPropertyChanged(nameof(SilverBoxCalibrationStatus));
+            _log.Info("Silver Box icon calibrated. The collector is ready.");
+            _log.Info("Automation remains paused; press Start automation when ready.");
+        }
+        catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            _log.Error("Silver Box calibration failed.", exception);
+        }
+        finally
+        {
+            await _gameAdapter.ReleaseInputAsync(CancellationToken.None);
+            IsCalibrationEnabled = true;
+        }
+    }
+
     public async Task ShutdownAsync()
     {
         _engine.SetPaused(true);
@@ -446,8 +509,13 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             _commandCount++;
             OnPropertyChanged(nameof(CommandCountLabel));
 
-            if (_commandCount == 1)
+            if (action == AutomationAction.CollectSilverBox)
             {
+                _log.Info("Silver Box collected.");
+            }
+            else if (action == AutomationAction.JumpAndBoost && !_jumpPulseReported)
+            {
+                _jumpPulseReported = true;
                 _log.Info("The first input pulse was sent to Idle Slayer.");
             }
         });

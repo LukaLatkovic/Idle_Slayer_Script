@@ -2,7 +2,7 @@ namespace IdleRunner.Core;
 
 public sealed class AutomationSettings
 {
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 3;
     public const int MinimumIntervalMilliseconds = 25;
     public const int MaximumIntervalMilliseconds = 2_000;
     public const int MinimumTimerMinutes = 1;
@@ -11,6 +11,8 @@ public sealed class AutomationSettings
     public int SettingsSchemaVersion { get; set; } = CurrentSchemaVersion;
 
     public int JumpIntervalMilliseconds { get; set; } = 150;
+
+    public bool CollectSilverBoxesEnabled { get; set; } = true;
 
     public bool AutoBuyUpgradesEnabled { get; set; }
 
@@ -54,6 +56,7 @@ public sealed class AutomationSettings
             JumpIntervalMilliseconds = Math.Max(
                 MinimumIntervalMilliseconds,
                 Math.Min(MaximumIntervalMilliseconds, JumpIntervalMilliseconds)),
+            CollectSilverBoxesEnabled = CollectSilverBoxesEnabled,
             AutoBuyUpgradesEnabled = AutoBuyUpgradesEnabled,
             AutoBuyIntervalMinutes = NormalizeTimerMinutes(AutoBuyIntervalMinutes),
             AutoAscendEnabled = AutoAscendEnabled,

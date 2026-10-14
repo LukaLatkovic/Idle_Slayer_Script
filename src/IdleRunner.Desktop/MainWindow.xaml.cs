@@ -58,6 +58,11 @@ public partial class MainWindow : Window
         await _viewModel.CalibrateGameplayAsync();
     }
 
+    private async void OnCalibrateSilverBoxClick(object sender, RoutedEventArgs e)
+    {
+        await _viewModel.CalibrateSilverBoxAsync();
+    }
+
     private async void OnHotkeyToggleRequested(object? sender, EventArgs e)
     {
         await _viewModel.ToggleAutomationAsync();

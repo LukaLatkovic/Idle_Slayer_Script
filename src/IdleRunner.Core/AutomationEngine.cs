@@ -133,7 +133,17 @@ public sealed class AutomationEngine
                 continue;
             }
 
-            if (!module.CanRun(snapshot, normalizedSettings))
+            bool canRun = module is IObservedAutomationModule observedModule
+                ? await observedModule
+                    .CanRunAsync(snapshot, normalizedSettings, cancellationToken)
+                    .ConfigureAwait(false)
+                : module.CanRun(snapshot, normalizedSettings);
+
+            TimeSpan interval = module.GetInterval(normalizedSettings);
+            long intervalTicks = (long)(interval.TotalSeconds * Stopwatch.Frequency);
+            _nextRunTimestamps[module] = Stopwatch.GetTimestamp() + Math.Max(1, intervalTicks);
+
+            if (!canRun)
             {
                 continue;
             }
@@ -141,10 +151,6 @@ public sealed class AutomationEngine
             bool wasExecuted = await _gameAdapter
                 .ExecuteAsync(module.Action, cancellationToken)
                 .ConfigureAwait(false);
-
-            TimeSpan interval = module.GetInterval(normalizedSettings);
-            long intervalTicks = (long)(interval.TotalSeconds * Stopwatch.Frequency);
-            _nextRunTimestamps[module] = Stopwatch.GetTimestamp() + Math.Max(1, intervalTicks);
 
             if (wasExecuted)
             {

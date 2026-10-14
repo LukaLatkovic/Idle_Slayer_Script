@@ -17,6 +17,7 @@ The first vertical slice provides:
 - client-only game frame capture with a lighting-tolerant grayscale template matcher;
 - named visual observations that combine multiple independently scored anchors;
 - optional persisted gameplay-HUD calibration that blocks input when the normal HUD is not recognized;
+- a shape-calibrated Silver Box collector that refuses to click when the claim icon is absent;
 - the complete legacy General, Minigames, and Crafting configuration model;
 - one-time import from a legacy `IdleRunnerLogs/Settings.txt` file when upgrading;
 - dependency-free executable tests for the core safety behavior.
@@ -64,6 +65,8 @@ The application activates Idle Slayer only as a direct response to the user pres
 4. its client area is exactly 1280 x 720.
 
 The **Calibrate gameplay screen** action captures the normal gameplay HUD while menus are closed. Once calibrated, at least one of the two bottom action-slot anchors must remain visible before an input pulse can be sent. Calibration is optional and always leaves automation paused.
+
+The Silver Box collector has a separate calibration in **General**. Calibration is accepted only while the bright, high-contrast claim icon is visible in its expected top-center position. The collector then checks the complete icon shape in a bounded search area before clicking; a plain background or the remaining-box counter is rejected.
 
 The Windows adapter checks foreground ownership again immediately before calling `SendInput`.
 Each jump-and-boost command holds both mouse buttons for 35 milliseconds so the Unity input loop can observe the pressed state before they are released. Keyboard `SendInput` and direct window messages were tested against the installed Unity 6000.3 build and were ignored by the game; mouse input was confirmed from captured game frames.

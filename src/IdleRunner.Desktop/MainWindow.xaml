@@ -532,6 +532,29 @@
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
+                                <CheckBox IsChecked="{Binding CollectSilverBoxesEnabled}"
+                                          AutomationProperties.Name="Collect Silver Boxes"
+                                          Style="{StaticResource SettingsCheckBoxStyle}" />
+                                <StackPanel Grid.Column="1" Margin="13,0,0,0">
+                                    <TextBlock Text="Collect Silver Boxes" Style="{StaticResource SettingTitleStyle}" />
+                                    <TextBlock Text="Claim the top-screen Silver Box only after its calibrated icon is recognized."
+                                               Style="{StaticResource SettingDescriptionStyle}" />
+                                    <TextBlock Text="{Binding SilverBoxCalibrationStatus}"
+                                               Style="{StaticResource SettingDescriptionStyle}" />
+                                    <Button Margin="0,12,0,0"
+                                            Content="Calibrate visible Silver Box icon"
+                                            IsEnabled="{Binding IsCalibrationEnabled}"
+                                            Style="{StaticResource SecondaryButtonStyle}"
+                                            Click="OnCalibrateSilverBoxClick" />
+                                    <TextBlock Text="MODULE READY" Style="{StaticResource PendingLabelStyle}" />
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid Margin="0,0,0,30">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
                                 <CheckBox IsChecked="{Binding CirclePortalsEnabled}"
                                           AutomationProperties.Name="Cycle portals"
                                           Style="{StaticResource SettingsCheckBoxStyle}" />

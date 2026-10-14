@@ -79,11 +79,6 @@ public sealed partial class WindowsGameAdapter : IGameAdapter
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (action != AutomationAction.JumpAndBoost)
-        {
-            throw new NotSupportedException($"The action '{action}' is not supported by the Windows adapter.");
-        }
-
         nint window = _gameWindow;
         if (window == nint.Zero
             || !NativeMethods.IsWindow(window)
@@ -93,6 +88,18 @@ public sealed partial class WindowsGameAdapter : IGameAdapter
             return false;
         }
 
+        return action switch
+        {
+            AutomationAction.JumpAndBoost => await SendJumpAndBoostAsync(window, cancellationToken)
+                .ConfigureAwait(false),
+            AutomationAction.CollectSilverBox => await ClickSilverBoxAsync(window, cancellationToken)
+                .ConfigureAwait(false),
+            _ => throw new NotSupportedException($"The action '{action}' is not supported by the Windows adapter.")
+        };
+    }
+
+    private async Task<bool> SendJumpAndBoostAsync(nint window, CancellationToken cancellationToken)
+    {
         if (!TryParkCursor(window))
         {
             return false;
@@ -118,6 +125,39 @@ public sealed partial class WindowsGameAdapter : IGameAdapter
         finally
         {
             SendInputEvents(buttonUpInputs);
+        }
+
+        return true;
+    }
+
+    private async Task<bool> ClickSilverBoxAsync(nint window, CancellationToken cancellationToken)
+    {
+        if (!TryMoveCursorToClientPoint(
+            window,
+            SilverBoxCalibration.ClickX,
+            SilverBoxCalibration.ClickY))
+        {
+            return false;
+        }
+
+        SendInputEvents([NativeMethods.Input.MouseButton(MouseEventLeftDown)]);
+
+        try
+        {
+            await Task.Delay(InputPulseMilliseconds, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            SendInputEvents([NativeMethods.Input.MouseButton(MouseEventLeftUp)]);
+
+            if (NativeMethods.GetForegroundWindow() == window)
+            {
+                TryParkCursor(window);
+            }
+            else
+            {
+                RestoreCursor();
+            }
         }
 
         return true;
@@ -167,11 +207,25 @@ public sealed partial class WindowsGameAdapter : IGameAdapter
 
         if (sent != inputs.Length)
         {
-            throw new Win32Exception(Marshal.GetLastWin32Error(), "Windows did not accept all keyboard input events.");
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "Windows did not accept all mouse input events.");
         }
     }
 
     private bool TryParkCursor(nint window)
+    {
+        if (!NativeMethods.GetClientRect(window, out NativeMethods.Rect clientRect))
+        {
+            RestoreCursor();
+            return false;
+        }
+
+        return TryMoveCursorToClientPoint(
+            window,
+            (clientRect.Right - clientRect.Left) / 2,
+            (clientRect.Bottom - clientRect.Top) / 2);
+    }
+
+    private bool TryMoveCursorToClientPoint(nint window, int clientX, int clientY)
     {
         lock (_cursorLock)
         {
@@ -185,18 +239,20 @@ public sealed partial class WindowsGameAdapter : IGameAdapter
                 _cursorIsParked = true;
             }
 
-            if (!NativeMethods.GetClientRect(window, out NativeMethods.Rect clientRect))
+            if (!NativeMethods.GetClientRect(window, out NativeMethods.Rect clientRect)
+                || clientX < clientRect.Left
+                || clientY < clientRect.Top
+                || clientX >= clientRect.Right
+                || clientY >= clientRect.Bottom)
             {
                 RestoreCursorWithinLock();
                 return false;
             }
 
-            NativeMethods.Point safePosition = new(
-                (clientRect.Right - clientRect.Left) / 2,
-                (clientRect.Bottom - clientRect.Top) / 2);
+            NativeMethods.Point targetPosition = new(clientX, clientY);
 
-            if (!NativeMethods.ClientToScreen(window, ref safePosition)
-                || !NativeMethods.SetCursorPos(safePosition.X, safePosition.Y))
+            if (!NativeMethods.ClientToScreen(window, ref targetPosition)
+                || !NativeMethods.SetCursorPos(targetPosition.X, targetPosition.Y))
             {
                 RestoreCursorWithinLock();
                 return false;

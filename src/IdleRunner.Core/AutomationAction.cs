@@ -2,5 +2,6 @@ namespace IdleRunner.Core;
 
 public enum AutomationAction
 {
-    JumpAndBoost
+    JumpAndBoost,
+    CollectSilverBox
 }

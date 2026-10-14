@@ -17,12 +17,14 @@ internal static class Program
             ("Template search locates the strongest shape", TemplateSearchLocatesStrongestShapeAsync),
             ("Named observation requires multiple visual anchors", NamedObservationRequiresMultipleAnchorsAsync),
             ("Gameplay HUD calibration recognizes its source frame", GameplayHudCalibrationRecognizesSourceAsync),
+            ("Silver Box calibration rejects a missing icon", SilverBoxCalibrationRejectsMissingIconAsync),
             ("Paused engine does not send input", PausedEngineDoesNotSendInputAsync),
             ("Missing game does not send input", MissingGameDoesNotSendInputAsync),
             ("Background game does not send input", BackgroundGameDoesNotSendInputAsync),
             ("Wrong client size does not send input", WrongClientSizeDoesNotSendInputAsync),
             ("Ready game receives input", ReadyGameReceivesInputAsync),
             ("Visual gate blocks input", VisualGateBlocksInputAsync),
+            ("Observed Silver Box triggers its action", ObservedSilverBoxTriggersActionAsync),
             ("Module interval prevents immediate duplicate input", ModuleIntervalPreventsDuplicateInputAsync),
             ("Rejected input is not reported as executed", RejectedInputIsNotReportedAsync)
         ];
@@ -99,6 +101,7 @@ internal static class Program
         AssertEqual(true, settings.PerfectChestHunt);
         AssertEqual(1, settings.PortalCyclePosition);
         AssertEqual(150, settings.JumpIntervalMilliseconds);
+        AssertEqual(true, settings.CollectSilverBoxesEnabled);
         return Task.CompletedTask;
     }
 
@@ -234,6 +237,45 @@ internal static class Program
         return Task.CompletedTask;
     }
 
+    private static Task SilverBoxCalibrationRejectsMissingIconAsync()
+    {
+        GameFrame iconFrame = CreateSilverBoxFrame(hasIcon: true);
+        GameFrame blankFrame = CreateSilverBoxFrame(hasIcon: false);
+        GameFrame colorfulBackgroundFrame = CreateSilverBoxBackgroundFrame();
+        SilverBoxCalibration calibration = SilverBoxCalibration.FromFrame(iconFrame);
+        VisualObservationDefinition observation = calibration.CreateObservation();
+
+        AssertTrue(observation.Evaluate(iconFrame).IsMatch, "Expected the calibrated Silver Box icon to match.");
+        AssertEqual(false, observation.Evaluate(blankFrame).IsMatch);
+
+        bool rejectedBlankCalibration = false;
+        try
+        {
+            SilverBoxCalibration.FromFrame(blankFrame);
+        }
+        catch (ArgumentException)
+        {
+            rejectedBlankCalibration = true;
+        }
+
+        AssertTrue(rejectedBlankCalibration, "Expected calibration without the claim icon to be rejected.");
+
+        bool rejectedColorfulBackground = false;
+        try
+        {
+            SilverBoxCalibration.FromFrame(colorfulBackgroundFrame);
+        }
+        catch (ArgumentException)
+        {
+            rejectedColorfulBackground = true;
+        }
+
+        AssertTrue(
+            rejectedColorfulBackground,
+            "Expected a colorful background without the icon's white and black detail to be rejected.");
+        return Task.CompletedTask;
+    }
+
     private static async Task PausedEngineDoesNotSendInputAsync()
     {
         FakeGameAdapter adapter = new(ReadySnapshot());
@@ -315,6 +357,27 @@ internal static class Program
 
         AssertEqual(1, gate.CheckCount);
         AssertEqual(0, adapter.ExecutionCount);
+    }
+
+    private static async Task ObservedSilverBoxTriggersActionAsync()
+    {
+        GameFrame frame = CreateSilverBoxFrame(hasIcon: true);
+        SilverBoxCalibration calibration = SilverBoxCalibration.FromFrame(frame);
+        SilverBoxModule module = new(
+            new FakeFrameSource(frame),
+            () => calibration.CreateObservation());
+        FakeGameAdapter adapter = new(ReadySnapshot());
+        AutomationEngine engine = new(
+            adapter,
+            new FakeLog(),
+            () => Settings,
+            modules: [module]);
+        engine.SetPaused(false);
+
+        await engine.RunOnceAsync(Settings);
+
+        AssertEqual(1, adapter.ExecutionCount);
+        AssertEqual(AutomationAction.CollectSilverBox, adapter.LastAction);
     }
 
     private static async Task RejectedInputIsNotReportedAsync()
@@ -422,6 +485,48 @@ internal static class Program
         }
 
         return pixels;
+    }
+
+    private static GameFrame CreateSilverBoxFrame(bool hasIcon)
+    {
+        byte[] pixels = CreateGrayscalePixels(1_280, 720, 30);
+        if (hasIcon)
+        {
+            byte[] levels = [25, 65, 125, 210, 245];
+            for (int y = 0; y < 20; y++)
+            {
+                for (int x = 0; x < 20; x++)
+                {
+                    byte value = levels[(x + y) % levels.Length];
+                    int offset = checked(((7 + y) * 1_280 + 631 + x) * 4);
+                    pixels[offset] = value;
+                    pixels[offset + 1] = value;
+                    pixels[offset + 2] = value;
+                }
+            }
+        }
+
+        return new GameFrame(1_280, 720, pixels);
+    }
+
+    private static GameFrame CreateSilverBoxBackgroundFrame()
+    {
+        byte[] pixels = CreateGrayscalePixels(1_280, 720, 90);
+        byte[] levels = [34, 48, 62, 76, 90, 104, 118, 132, 146, 160, 174, 188, 202, 213];
+
+        for (int y = 0; y < 20; y++)
+        {
+            for (int x = 0; x < 20; x++)
+            {
+                byte value = levels[(x + y) % levels.Length];
+                int offset = checked(((7 + y) * 1_280 + 631 + x) * 4);
+                pixels[offset] = value;
+                pixels[offset + 1] = value;
+                pixels[offset + 2] = value;
+            }
+        }
+
+        return new GameFrame(1_280, 720, pixels);
     }
 
     private static void PaintCheckerPattern(
@@ -535,6 +640,22 @@ internal static class Program
             cancellationToken.ThrowIfCancellationRequested();
             CheckCount++;
             return Task.FromResult(_result);
+        }
+    }
+
+    private sealed class FakeFrameSource : IGameFrameSource
+    {
+        private readonly GameFrame? _frame;
+
+        public FakeFrameSource(GameFrame? frame)
+        {
+            _frame = frame;
+        }
+
+        public Task<GameFrame?> CaptureAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(_frame);
         }
     }
 }
