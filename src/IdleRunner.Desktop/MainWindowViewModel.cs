@@ -117,6 +117,16 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _engineTask ??= _engine.RunAsync(_shutdown.Token);
     }
 
+    public void ReportInfo(string message)
+    {
+        _log.Info(message);
+    }
+
+    public void ReportError(string message, Exception exception)
+    {
+        _log.Error(message, exception);
+    }
+
     public async Task ToggleAutomationAsync()
     {
         if (!IsPrimaryActionEnabled)
@@ -196,7 +206,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
             if (_commandCount == 1)
             {
-                _log.Info("The first keyboard command was delivered to Idle Slayer.");
+                _log.Info("The first input pulse was sent to Idle Slayer.");
             }
         });
     }
@@ -235,7 +245,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             return;
         }
 
-        StatusTitle = canReceiveInput ? "Running" : "Running — waiting";
+        StatusTitle = canReceiveInput ? "Running" : "Running - waiting";
         StatusDetail = _lastSnapshot.Describe(_settings);
         StatusBrush = canReceiveInput ? ReadyBrush : WaitingBrush;
     }

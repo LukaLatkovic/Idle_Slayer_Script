@@ -16,6 +16,7 @@ internal static class Program
             ("Background game does not send input", BackgroundGameDoesNotSendInputAsync),
             ("Wrong client size does not send input", WrongClientSizeDoesNotSendInputAsync),
             ("Ready game receives input", ReadyGameReceivesInputAsync),
+            ("Module interval prevents immediate duplicate input", ModuleIntervalPreventsDuplicateInputAsync),
             ("Rejected input is not reported as executed", RejectedInputIsNotReportedAsync)
         ];
 
@@ -136,6 +137,18 @@ internal static class Program
 
         AssertEqual(1, adapter.ExecutionCount);
         AssertEqual(0, executedActionCount);
+    }
+
+    private static async Task ModuleIntervalPreventsDuplicateInputAsync()
+    {
+        FakeGameAdapter adapter = new(ReadySnapshot());
+        AutomationEngine engine = CreateEngine(adapter);
+        engine.SetPaused(false);
+
+        await engine.RunOnceAsync(Settings);
+        await engine.RunOnceAsync(Settings);
+
+        AssertEqual(1, adapter.ExecutionCount);
     }
 
     private static AutomationEngine CreateEngine(FakeGameAdapter adapter)

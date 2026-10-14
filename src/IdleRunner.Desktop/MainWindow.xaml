@@ -9,6 +9,7 @@
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource CanvasBrush}"
         Foreground="{StaticResource TextBrush}"
+        SourceInitialized="OnSourceInitialized"
         Loaded="OnLoaded"
         Closing="OnClosing">
     <Window.Resources>
@@ -177,7 +178,8 @@
                     <TextBlock Text="✓ Client area must be 1280 × 720" Margin="0,0,0,9" />
                     <TextBlock Text="✓ Single application instance" Margin="0,0,0,9" />
                     <TextBlock Text="✓ Mouse jump + boost, 35 ms pulse" Margin="0,0,0,9" />
-                    <TextBlock Text="✓ Cursor parked safely while running" />
+                    <TextBlock Text="✓ Cursor parked safely while running" Margin="0,0,0,9" />
+                    <TextBlock Text="Home toggles · Shift+Esc exits" />
                 </StackPanel>
 
                 <Border Grid.Row="2" Background="{StaticResource DividerBrush}" />

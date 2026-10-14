@@ -1,4 +1,37 @@
-# How to make it run?
+# C# rewrite preview
+
+The active rewrite is being developed on the `feature/csharp-rewrite` branch. The original AutoIt implementation remains unchanged on `main`.
+
+## Current capabilities
+
+- Native Windows desktop application built with C# 14, .NET 10, and WPF.
+- Locates and activates the Steam version of Idle Slayer.
+- Sends verified left/right mouse input pulses for jump and boost.
+- Requires the game client to be 1280x720 and in the foreground before sending input.
+- Parks the cursor safely inside the game while automation is active and restores its previous position when paused or closed.
+- Starts paused, persists settings, prevents duplicate instances, and keeps an activity log.
+- Uses independently scheduled automation modules so additional gameplay features can be migrated incrementally.
+
+## Keyboard shortcuts
+
+- `Home`: start or pause automation from any application.
+- `Shift+Escape`: safely stop automation and exit.
+
+## Build and test
+
+Install the .NET 10 SDK, then run:
+
+```powershell
+dotnet build IdleRunner.slnx
+dotnet run --project tests/IdleRunner.Core.Tests
+dotnet run --project src/IdleRunner.Desktop
+```
+
+The C# version currently automates the basic jump-and-boost loop. The specialized AutoIt modules for bonus stages, menus, minions, portals, and other game systems still need to be ported.
+
+# Legacy AutoIt version
+
+## How to make it run?
 
 (Works only with the Steam Version on Windows)
 
