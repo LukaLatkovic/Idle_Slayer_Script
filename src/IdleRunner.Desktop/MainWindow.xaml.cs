@@ -63,6 +63,24 @@ public partial class MainWindow : Window
         Close();
     }
 
+    private void OnCopyActivityClick(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(_viewModel.ActivityText))
+        {
+            return;
+        }
+
+        try
+        {
+            Clipboard.SetText(_viewModel.ActivityText);
+            _viewModel.ReportInfo("The activity log was copied to the clipboard.");
+        }
+        catch (Exception exception)
+        {
+            _viewModel.ReportError("The activity log could not be copied.", exception);
+        }
+    }
+
     private async void OnClosing(object? sender, CancelEventArgs e)
     {
         if (_shutdownCompleted)

@@ -47,6 +47,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public ObservableCollection<string> ActivityEntries { get; } = new();
 
+    public string ActivityText => string.Join(Environment.NewLine, ActivityEntries);
+
     public string StatusTitle
     {
         get => _statusTitle;
@@ -220,6 +222,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             {
                 ActivityEntries.RemoveAt(ActivityEntries.Count - 1);
             }
+
+            OnPropertyChanged(nameof(ActivityText));
         });
     }
 
