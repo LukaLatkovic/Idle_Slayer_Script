@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/IdleRunner.Core/IdleRunner.Core.csproj" />
+    <Project Path="src/IdleRunner.Platform.Windows/IdleRunner.Platform.Windows.csproj" />
+    <Project Path="src/IdleRunner.Desktop/IdleRunner.Desktop.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/IdleRunner.Core.Tests/IdleRunner.Core.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,199 @@
+<Window x:Class="IdleRunner.Desktop.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Idle Runner"
+        Width="940"
+        Height="620"
+        MinWidth="820"
+        MinHeight="540"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource CanvasBrush}"
+        Foreground="{StaticResource TextBrush}"
+        Loaded="OnLoaded"
+        Closing="OnClosing">
+    <Window.Resources>
+        <Storyboard x:Key="EntranceStoryboard">
+            <DoubleAnimation Storyboard.TargetName="Workspace"
+                             Storyboard.TargetProperty="Opacity"
+                             From="0"
+                             To="1"
+                             Duration="0:0:0.22" />
+            <DoubleAnimation Storyboard.TargetName="WorkspaceTransform"
+                             Storyboard.TargetProperty="Y"
+                             From="8"
+                             To="0"
+                             Duration="0:0:0.22">
+                <DoubleAnimation.EasingFunction>
+                    <CubicEase EasingMode="EaseOut" />
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+        </Storyboard>
+    </Window.Resources>
+
+    <Grid x:Name="Workspace" Opacity="0" Margin="34,28,34,30">
+        <Grid.RenderTransform>
+            <TranslateTransform x:Name="WorkspaceTransform" />
+        </Grid.RenderTransform>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="1" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid Margin="0,0,0,24">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel>
+                <TextBlock Text="IDLE RUNNER"
+                           FontSize="12"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource AccentBrush}" />
+                <TextBlock Text="Automation control"
+                           Margin="0,6,0,0"
+                           FontSize="23"
+                           FontWeight="SemiBold" />
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" HorizontalAlignment="Right">
+                <TextBlock Text="MIGRATION BUILD"
+                           Style="{StaticResource SectionLabelStyle}"
+                           HorizontalAlignment="Right" />
+                <TextBlock Text="C# / Windows"
+                           Margin="0,5,0,0"
+                           Foreground="{StaticResource MutedTextBrush}"
+                           HorizontalAlignment="Right" />
+            </StackPanel>
+        </Grid>
+
+        <Border Grid.Row="1" Background="{StaticResource DividerBrush}" />
+
+        <Grid Grid.Row="2" Margin="0,30,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.05*" />
+                <ColumnDefinition Width="1" />
+                <ColumnDefinition Width="0.95*" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Margin="0,0,42,0">
+                <TextBlock Text="CURRENT STATE" Style="{StaticResource SectionLabelStyle}" />
+
+                <StackPanel Margin="0,24,0,0" Orientation="Horizontal">
+                    <Ellipse Width="12"
+                             Height="12"
+                             Margin="0,7,12,0"
+                             VerticalAlignment="Top"
+                             Fill="{Binding StatusBrush}">
+                        <Ellipse.Style>
+                            <Style TargetType="Ellipse">
+                                <Setter Property="Opacity" Value="1" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                                        <DataTrigger.EnterActions>
+                                            <BeginStoryboard>
+                                                <Storyboard>
+                                                    <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                     From="1"
+                                                                     To="0.42"
+                                                                     Duration="0:0:0.8"
+                                                                     AutoReverse="True"
+                                                                     RepeatBehavior="Forever" />
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.EnterActions>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Ellipse.Style>
+                    </Ellipse>
+                    <StackPanel>
+                        <TextBlock Text="{Binding StatusTitle}"
+                                   FontSize="28"
+                                   FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding StatusDetail}"
+                                   Margin="0,7,0,0"
+                                   MaxWidth="350"
+                                   FontSize="13"
+                                   Foreground="{StaticResource MutedTextBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </StackPanel>
+
+                <Button Margin="0,34,0,0"
+                        Content="{Binding PrimaryActionText}"
+                        Style="{StaticResource PrimaryButtonStyle}"
+                        Click="OnPrimaryActionClick" />
+
+                <Grid Margin="0,34,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Text="JUMP INTERVAL" Style="{StaticResource SectionLabelStyle}" />
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding JumpIntervalLabel}"
+                               FontSize="12"
+                               Foreground="{StaticResource MutedTextBrush}" />
+                    <Slider Grid.Row="1"
+                            Grid.ColumnSpan="2"
+                            Margin="0,13,0,0"
+                            Minimum="25"
+                            Maximum="1000"
+                            TickFrequency="25"
+                            IsSnapToTickEnabled="True"
+                            Value="{Binding JumpIntervalMilliseconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                </Grid>
+            </StackPanel>
+
+            <Border Grid.Column="1" Background="{StaticResource DividerBrush}" />
+
+            <Grid Grid.Column="2" Margin="42,0,0,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="1" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Text="SAFETY GATES" Style="{StaticResource SectionLabelStyle}" />
+                <StackPanel Grid.Row="1" Margin="0,18,0,25">
+                    <TextBlock Text="✓ Starts paused" Margin="0,0,0,9" />
+                    <TextBlock Text="✓ Idle Slayer must be foreground" Margin="0,0,0,9" />
+                    <TextBlock Text="✓ Client area must be 1280 × 720" Margin="0,0,0,9" />
+                    <TextBlock Text="✓ Single application instance" />
+                </StackPanel>
+
+                <Border Grid.Row="2" Background="{StaticResource DividerBrush}" />
+
+                <TextBlock Grid.Row="3"
+                           Margin="0,25,0,0"
+                           Text="ACTIVITY"
+                           Style="{StaticResource SectionLabelStyle}" />
+                <ScrollViewer Grid.Row="4"
+                              Margin="0,16,0,0"
+                              VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding ActivityEntries}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Margin="0,0,0,9"
+                                           FontFamily="Cascadia Mono, Consolas"
+                                           FontSize="11"
+                                           Foreground="{StaticResource MutedTextBrush}"
+                                           Text="{Binding}"
+                                           TextWrapping="Wrap" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Grid>
+        </Grid>
+    </Grid>
+</Window>

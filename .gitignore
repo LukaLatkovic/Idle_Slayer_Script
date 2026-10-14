@@ -3,3 +3,11 @@ IdleRunnerLogs
 Backup
 language-server-log.txt
 Idle Runner_stripped.au3
+
+# C# build and IDE output
+bin/
+obj/
+.vs/
+artifacts/
+*.user
+*.suo
