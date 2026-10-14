@@ -22,6 +22,7 @@ internal static class Program
             ("Chest Hunt perfect strategy preserves its search limits", ChestHuntPerfectStrategyAsync),
             ("Chest Hunt special outcomes override the strategy", ChestHuntSpecialOutcomesAsync),
             ("Chest Hunt timing follows Lockpicking availability", ChestHuntTimingFollowsSettingsAsync),
+            ("Chest Hunt calibration locates a moved Saver", ChestHuntCalibrationLocatesSaverAsync),
             ("Paused engine does not send input", PausedEngineDoesNotSendInputAsync),
             ("Missing game does not send input", MissingGameDoesNotSendInputAsync),
             ("Background game does not send input", BackgroundGameDoesNotSendInputAsync),
@@ -392,6 +393,23 @@ internal static class Program
         return Task.CompletedTask;
     }
 
+    private static Task ChestHuntCalibrationLocatesSaverAsync()
+    {
+        GameFrame calibrationFrame = CreateChestHuntFrame(saverRow: 2, saverColumn: 5);
+        GameFrame movedSaverFrame = CreateChestHuntFrame(saverRow: 3, saverColumn: 7);
+        ChestHuntCalibration calibration = ChestHuntCalibration.FromFrame(calibrationFrame);
+
+        ChestHuntSaverMatch initial = calibration.LocateSaver(calibrationFrame);
+        ChestHuntSaverMatch moved = calibration.LocateSaver(movedSaverFrame);
+
+        AssertEqual(true, initial.IsMatch);
+        AssertEqual(new ChestHuntGridPosition(2, 5, 592, 368), initial.Position);
+        AssertEqual(true, moved.IsMatch);
+        AssertEqual(new ChestHuntGridPosition(3, 7, 782, 463), moved.Position);
+        AssertTrue(moved.Score > 0.99, $"Expected an exact moved Saver match, received {moved.Score:F4}.");
+        return Task.CompletedTask;
+    }
+
     private static async Task PausedEngineDoesNotSendInputAsync()
     {
         FakeGameAdapter adapter = new(ReadySnapshot());
@@ -643,6 +661,65 @@ internal static class Program
         }
 
         return new GameFrame(1_280, 720, pixels);
+    }
+
+    private static GameFrame CreateChestHuntFrame(int saverRow, int saverColumn)
+    {
+        byte[] pixels = CreateGrayscalePixels(1_280, 720, 25);
+
+        foreach (ChestHuntGridPosition position in ChestHuntCalibration.Positions)
+        {
+            for (int y = -40; y < 40; y++)
+            {
+                for (int x = -40; x < 40; x++)
+                {
+                    byte value = (byte)(70 + ((((x + 40) / 8) + ((y + 40) / 8)) % 3 * 45));
+                    SetBgraPixel(
+                        pixels,
+                        1_280,
+                        position.CenterX + x,
+                        position.CenterY + y,
+                        value,
+                        value,
+                        value);
+                }
+            }
+        }
+
+        ChestHuntGridPosition saver = ChestHuntCalibration.Positions
+            .Single(position => position.Row == saverRow && position.Column == saverColumn);
+        PaintSaverCorner(pixels, saver.CenterX - 38, saver.CenterY - 38);
+        PaintSaverCorner(pixels, saver.CenterX + 31, saver.CenterY - 38);
+        PaintSaverCorner(pixels, saver.CenterX - 38, saver.CenterY + 31);
+        PaintSaverCorner(pixels, saver.CenterX + 31, saver.CenterY + 31);
+        return new GameFrame(1_280, 720, pixels);
+    }
+
+    private static void PaintSaverCorner(byte[] pixels, int left, int top)
+    {
+        for (int y = 0; y < 8; y++)
+        {
+            for (int x = 0; x < 8; x++)
+            {
+                SetBgraPixel(pixels, 1_280, left + x, top + y, 255, 230, 0);
+            }
+        }
+    }
+
+    private static void SetBgraPixel(
+        byte[] pixels,
+        int frameWidth,
+        int x,
+        int y,
+        byte red,
+        byte green,
+        byte blue)
+    {
+        int offset = checked(((y * frameWidth) + x) * 4);
+        pixels[offset] = blue;
+        pixels[offset + 1] = green;
+        pixels[offset + 2] = red;
+        pixels[offset + 3] = 255;
     }
 
     private static void PaintCheckerPattern(

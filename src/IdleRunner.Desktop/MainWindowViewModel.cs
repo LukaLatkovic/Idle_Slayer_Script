@@ -22,6 +22,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private readonly IGameFrameSource _frameSource;
     private readonly GameplayVisualGate _gameplayVisualGate;
     private readonly SilverBoxVisualService _silverBoxVisualService;
+    private readonly ChestHuntVisualService _chestHuntVisualService;
     private readonly AutomationEngine _engine;
     private readonly CancellationTokenSource _shutdown = new();
     private Task? _engineTask;
@@ -57,6 +58,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _silverBoxVisualService = new SilverBoxVisualService(
             _frameSource,
             new SilverBoxCalibrationStore());
+        _chestHuntVisualService = new ChestHuntVisualService(
+            _frameSource,
+            new ChestHuntCalibrationStore());
         _engine = new AutomationEngine(
             _gameAdapter,
             _log,
@@ -130,6 +134,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public string SilverBoxCalibrationStatus => _silverBoxVisualService.HasCalibration
         ? "Icon calibrated - collector is ready."
         : "Icon not calibrated - collector will not click.";
+
+    public string ChestHuntCalibrationStatus => _chestHuntVisualService.HasCalibration
+        ? "Saver layout calibrated - visual execution remains disabled."
+        : "Not calibrated - capture while the yellow Saver marker is visible.";
 
     public string CommandCountLabel => _commandCount == 1
         ? "1 command sent"
@@ -431,6 +439,49 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         catch (Exception exception)
         {
             _log.Error("Silver Box calibration failed.", exception);
+        }
+        finally
+        {
+            await _gameAdapter.ReleaseInputAsync(CancellationToken.None);
+            IsCalibrationEnabled = true;
+        }
+    }
+
+    public async Task CalibrateChestHuntAsync()
+    {
+        if (!IsCalibrationEnabled)
+        {
+            return;
+        }
+
+        IsCalibrationEnabled = false;
+        _engine.SetPaused(true);
+
+        try
+        {
+            await _gameAdapter.ReleaseInputAsync(_shutdown.Token);
+
+            bool activated = await _gameAdapter.TryActivateAsync(_shutdown.Token);
+            if (!activated)
+            {
+                _log.Info("Idle Slayer could not be activated for Chest Hunt calibration.");
+                return;
+            }
+
+            ChestHuntSaverMatch saver = await _chestHuntVisualService
+                .CalibrateAsync(_shutdown.Token);
+            OnPropertyChanged(nameof(ChestHuntCalibrationStatus));
+            _log.Info(
+                $"Chest Hunt layout calibrated. Saver located at row {saver.Position.Row}, "
+                + $"column {saver.Position.Column} with confidence {saver.Score:P1}.");
+            _log.Info("Chest Hunt visual execution remains disabled until outcome detection is complete.");
+        }
+        catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            _log.Error("Chest Hunt calibration failed.", exception);
         }
         finally
         {

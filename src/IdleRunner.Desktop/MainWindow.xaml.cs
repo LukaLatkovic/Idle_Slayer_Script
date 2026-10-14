@@ -63,6 +63,11 @@ public partial class MainWindow : Window
         await _viewModel.CalibrateSilverBoxAsync();
     }
 
+    private async void OnCalibrateChestHuntClick(object sender, RoutedEventArgs e)
+    {
+        await _viewModel.CalibrateChestHuntAsync();
+    }
+
     private async void OnHotkeyToggleRequested(object? sender, EventArgs e)
     {
         await _viewModel.ToggleAutomationAsync();

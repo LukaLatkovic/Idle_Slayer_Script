@@ -600,8 +600,20 @@
                     <StackPanel MaxWidth="760" HorizontalAlignment="Left">
                         <TextBlock Text="MINIGAME STRATEGY" Style="{StaticResource SectionLabelStyle}" />
                         <TextBlock Margin="0,7,0,28"
-                                   Text="These options match the original configuration. Chest Hunt decisions and timing are now ported; visual execution remains disabled until its screen rules are calibrated."
+                                   Text="These options match the original configuration. Chest Hunt decisions and timing are ported, and layout calibration is available while guarded execution is still being built."
                                    Style="{StaticResource SettingDescriptionStyle}" />
+
+                        <StackPanel Margin="0,0,0,30">
+                            <TextBlock Text="CHEST HUNT CALIBRATION" Style="{StaticResource SectionLabelStyle}" />
+                            <TextBlock Margin="0,8,0,0"
+                                       Text="{Binding ChestHuntCalibrationStatus}"
+                                       Style="{StaticResource SettingDescriptionStyle}" />
+                            <Button Margin="0,12,0,0"
+                                    Content="Calibrate current Chest Hunt"
+                                    IsEnabled="{Binding IsCalibrationEnabled}"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Click="OnCalibrateChestHuntClick" />
+                        </StackPanel>
 
                         <Grid Margin="0,0,0,28">
                             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>

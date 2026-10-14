@@ -14,7 +14,7 @@ The active rewrite is being developed on the `feature/csharp-rewrite` branch. Th
 - Captures the game client and supports shape-based grayscale template matching instead of relying only on exact pixel colors.
 - Can calibrate the normal gameplay HUD and pause input when menus or dialogs hide both visual anchors.
 - Includes an opt-in, shape-calibrated Silver Box collector with missing-icon rejection.
-- Preserves the original Chest Hunt strategy and Lockpicking timing as a tested C# decision engine; visual execution is still pending.
+- Preserves the original Chest Hunt strategy and Lockpicking timing as a tested C# decision engine, with live grid and Saver calibration; guarded visual execution is still pending.
 - Preserves and migrates the original General, Minigames, and Crafting settings while modules are ported incrementally.
 
 ## Keyboard shortcuts

@@ -19,6 +19,7 @@ The first vertical slice provides:
 - optional persisted gameplay-HUD calibration that blocks input when the normal HUD is not recognized;
 - a shape-calibrated Silver Box collector that refuses to click when the claim icon is absent;
 - a tested Chest Hunt decision engine covering the normal, perfect, and missing-saver strategies;
+- Chest Hunt grid and Saver calibration against a live 1280 x 720 game frame;
 - the complete legacy General, Minigames, and Crafting configuration model;
 - one-time import from a legacy `IdleRunnerLogs/Settings.txt` file when upgrading;
 - dependency-free executable tests for the core safety behavior.
@@ -56,7 +57,7 @@ dotnet run --project tools/IdleRunner.InputProbe -- capture artifacts/gameplay.b
 The desktop application stores settings, visual calibration, and logs under `%LOCALAPPDATA%\IdleRunner`.
 Configuration changes are saved immediately. Options for modules that have not yet been ported are marked `MODULE PENDING` in the desktop application.
 
-Chest Hunt strategy and Lockpicking timing are now implemented independently from screen control. The Minigames page marks them as `STRATEGY PORTED` or `TIMING PORTED`; chest-grid detection and clicking remain disabled until current-game visual rules are captured and tested.
+Chest Hunt strategy and Lockpicking timing are implemented independently from screen control. The Minigames page can calibrate the 10 x 3 chest grid and locate the highlighted Saver from its complete local shape. Guarded chest execution remains disabled until opened-chest and outcome observations are captured and tested.
 
 ## Safety behavior
 
@@ -71,6 +72,8 @@ The **Calibrate gameplay screen** action captures the normal gameplay HUD while 
 
 The Silver Box collector has a separate calibration in **General**. Calibration is accepted only while the bright, high-contrast claim icon is visible in its expected top-center position. The collector then checks the complete icon shape in a bounded search area before clicking; a plain background or the remaining-box counter is rejected.
 
+The Chest Hunt calibration in **Minigames** must be run while the yellow Saver marker is visible. It records the grid layout and Saver appearance, verifies that exactly one grid cell matches, and always leaves automation paused. Calibration itself never opens a chest.
+
 The Windows adapter checks foreground ownership again immediately before calling `SendInput`.
 Each jump-and-boost command holds both mouse buttons for 35 milliseconds so the Unity input loop can observe the pressed state before they are released. Keyboard `SendInput` and direct window messages were tested against the installed Unity 6000.3 build and were ignored by the game; mouse input was confirmed from captured game frames.
 
@@ -79,7 +82,7 @@ Because Unity evaluates the real cursor location for mouse input, the Windows ad
 ## Next migration slices
 
 1. Capture and approve named visual rules for specific Idle Slayer states.
-2. Connect the tested Chest Hunt strategy to calibrated chest-grid observations and guarded clicks.
+2. Add opened-chest and result observations, then connect the tested Chest Hunt strategy to guarded clicks.
 3. Add captured regression fixtures for every observation rule.
 4. Prototype an optional MelonLoader adapter for direct state and actions, pinned to a verified Idle Slayer version.
 5. Keep the external Windows adapter as the fallback when the internal game interface changes.
