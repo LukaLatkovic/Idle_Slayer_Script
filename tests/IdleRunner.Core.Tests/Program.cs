@@ -27,6 +27,7 @@ internal static class Program
             ("Chest Hunt outcomes require visual evidence", ChestHuntOutcomesRequireEvidenceAsync),
             ("Chest Hunt result detection rejects decorative colors", ChestHuntResultDetectionRejectsDecorationsAsync),
             ("Chest Hunt session routes the Life Saver", ChestHuntSessionRoutesLifeSaverAsync),
+            ("Chest Hunt session resumes an open grid", ChestHuntSessionResumesOpenGridAsync),
             ("Paused engine does not send input", PausedEngineDoesNotSendInputAsync),
             ("Missing game does not send input", MissingGameDoesNotSendInputAsync),
             ("Background game does not send input", BackgroundGameDoesNotSendInputAsync),
@@ -525,6 +526,17 @@ internal static class Program
         AssertEqual(false, calibration.IsHuntEndVisible(decorations));
         AssertEqual(false, calibration.IsPerfectChestVisible(decorations));
         AssertEqual(true, calibration.IsPerfectChestVisible(perfectChest));
+        return Task.CompletedTask;
+    }
+
+    private static Task ChestHuntSessionResumesOpenGridAsync()
+    {
+        ChestHuntGridPosition saver = new(1, 2, 307, 273);
+        ChestHuntGridPosition opened = new(1, 1, 212, 273);
+        ChestHuntSession session = new(saver, [opened]);
+
+        AssertEqual(1, session.OpenedChestCount);
+        AssertEqual(new ChestHuntGridPosition(1, 3, 402, 273), session.NextPosition!.Value);
         return Task.CompletedTask;
     }
 

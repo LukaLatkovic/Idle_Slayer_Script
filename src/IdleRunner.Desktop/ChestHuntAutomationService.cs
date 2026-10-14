@@ -11,7 +11,8 @@ public sealed class ChestHuntAutomationService
     private const int PerfectChestClickX = 457;
     private const int PerfectChestClickY = 439;
     private const int CloseButtonClickX = 643;
-    private const int CloseButtonClickY = 693;
+    private const int CloseButtonClickY = 658;
+    private const int MaximumChestClickAttempts = 3;
 
     private readonly IGameAdapter _gameAdapter;
     private readonly IGamePointerAdapter _pointerAdapter;
@@ -79,7 +80,13 @@ public sealed class ChestHuntAutomationService
 
     private async Task RunOnceAsync(CancellationToken cancellationToken)
     {
-        if (_isPaused() || !_visualService.HasCalibration)
+        if (_isPaused())
+        {
+            _waitingForGridExit = false;
+            return;
+        }
+
+        if (!_visualService.HasCalibration)
         {
             return;
         }
@@ -90,6 +97,28 @@ public sealed class ChestHuntAutomationService
             .ConfigureAwait(false);
         if (!snapshot.CanReceiveInput(settings))
         {
+            return;
+        }
+
+        ChestHuntCalibration? calibration = _visualService.Calibration;
+        GameFrame? currentFrame = await _frameSource
+            .CaptureAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (calibration is not null
+            && currentFrame is not null
+            && calibration.IsHuntEndVisible(currentFrame))
+        {
+            bool closed = await _pointerAdapter.ClickClientPointAsync(
+                CloseButtonClickX,
+                CloseButtonClickY,
+                cancellationToken).ConfigureAwait(false);
+            if (closed)
+            {
+                _clickExecuted();
+                _log.Info("Visible Chest Hunt result screen was closed.");
+                _waitingForGridExit = true;
+            }
+
             return;
         }
 
@@ -108,23 +137,21 @@ public sealed class ChestHuntAutomationService
             return;
         }
 
-        if (!observation.IsFresh)
+        if (!observation.IsFresh && !_reportedUnsafeResume)
         {
-            if (!_reportedUnsafeResume)
-            {
-                _reportedUnsafeResume = true;
-                _log.Info(
-                    $"Chest Hunt detected with {observation.OpenedNonSaverCount} chest(s) already open. "
-                    + "Waiting for a fresh Chest Hunt because earlier Mimic outcomes cannot be reconstructed safely.");
-            }
-
-            return;
+            _reportedUnsafeResume = true;
+            _log.Info(
+                $"Chest Hunt detected with {observation.OpenedNonSaverCount} chest(s) already open. "
+                + "Continuing from the remaining grid with the legacy no-Mimic fallback state.");
         }
 
-        _reportedUnsafeResume = false;
-        _log.Info(
-            $"Fresh Chest Hunt detected. Saver is at row {observation.Saver.Position.Row}, "
-            + $"column {observation.Saver.Position.Column}.");
+        if (observation.IsFresh)
+        {
+            _reportedUnsafeResume = false;
+            _log.Info(
+                $"Fresh Chest Hunt detected. Saver is at row {observation.Saver.Position.Row}, "
+                + $"column {observation.Saver.Position.Column}.");
+        }
 
         bool completed = await PlayAsync(
             observation.Saver.Position,
@@ -154,14 +181,24 @@ public sealed class ChestHuntAutomationService
             .ObserveAsync(cancellationToken)
             .ConfigureAwait(false);
         if (readyObservation is null
-            || !readyObservation.IsFresh
+            || !readyObservation.IsActive
             || readyObservation.Saver.Position != saverPosition)
         {
             PauseForSafety("Chest Hunt changed before execution started; automation was paused for safety.");
             return true;
         }
 
-        ChestHuntSession session = new(saverPosition);
+        ChestHuntGridPosition[] alreadyOpened = ChestHuntCalibration.Positions
+            .Where(position => position != saverPosition)
+            .Where(position => !readyObservation.ClosedPositions.Contains(position))
+            .ToArray();
+        bool openLifeSaverFirst = alreadyOpened.Length > 0
+            && (settings.NoReinforcedCrystalSaver
+                || (!settings.PerfectChestHunt && alreadyOpened.Length >= 2));
+        ChestHuntSession session = new(
+            saverPosition,
+            alreadyOpened,
+            openLifeSaverFirst);
 
         while (!session.IsComplete)
         {
@@ -174,6 +211,12 @@ public sealed class ChestHuntAutomationService
             GameFrame? beforeClick = await _frameSource
                 .CaptureAsync(cancellationToken)
                 .ConfigureAwait(false);
+            if (beforeClick is not null && calibration.IsHuntEndVisible(beforeClick))
+            {
+                return await CloseResultScreenAsync(calibration, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
             bool targetIsReady = false;
             if (beforeClick is not null)
             {
@@ -197,41 +240,63 @@ public sealed class ChestHuntAutomationService
                 return true;
             }
 
-            if (!await CanClickAsync(settings, cancellationToken).ConfigureAwait(false)
-                || !await _pointerAdapter.ClickClientPointAsync(
-                    nextPosition.Value.CenterX,
-                    nextPosition.Value.CenterY,
-                    cancellationToken).ConfigureAwait(false))
+            ChestHuntOutcome outcome = ChestHuntOutcome.Unknown;
+            GameFrame? frame = null;
+
+            for (int attempt = 1; attempt <= MaximumChestClickAttempts; attempt++)
             {
-                PauseForSafety("Chest Hunt click was rejected because the game is not ready for input.");
-                return true;
+                if (!await CanClickAsync(settings, cancellationToken).ConfigureAwait(false)
+                    || !await _pointerAdapter.ClickClientPointAsync(
+                        nextPosition.Value.CenterX,
+                        nextPosition.Value.CenterY,
+                        cancellationToken).ConfigureAwait(false))
+                {
+                    PauseForSafety("Chest Hunt click was rejected because the game is not ready for input.");
+                    return true;
+                }
+
+                _clickExecuted();
+
+                if (!await DelayWhileRunningAsync(timing.ChestRevealDelay, cancellationToken)
+                        .ConfigureAwait(false))
+                {
+                    return false;
+                }
+
+                frame = await _frameSource.CaptureAsync(cancellationToken).ConfigureAwait(false);
+                if (frame is null)
+                {
+                    PauseForSafety("Chest Hunt result could not be captured; automation was paused for safety.");
+                    return true;
+                }
+
+                outcome = session.IsOpeningLifeSaver
+                    ? calibration.IsSaverVisible(frame)
+                        ? ChestHuntOutcome.Unknown
+                        : ChestHuntOutcome.LifeSaver
+                    : calibration.DetectOutcome(frame, nextPosition.Value);
+
+                if (outcome != ChestHuntOutcome.Unknown)
+                {
+                    break;
+                }
+
+                if (attempt < MaximumChestClickAttempts)
+                {
+                    _log.Info(
+                        $"Chest Hunt row {nextPosition.Value.Row}, column {nextPosition.Value.Column} "
+                        + $"did not react; retrying click {attempt + 1}/{MaximumChestClickAttempts}.");
+                }
             }
 
-            _clickExecuted();
-
-            if (!await DelayWhileRunningAsync(timing.ChestRevealDelay, cancellationToken)
-                    .ConfigureAwait(false))
+            if (outcome == ChestHuntOutcome.Unknown)
             {
-                return false;
-            }
-
-            GameFrame? frame = await _frameSource.CaptureAsync(cancellationToken).ConfigureAwait(false);
-            if (frame is null)
-            {
-                PauseForSafety("Chest Hunt result could not be captured; automation was paused for safety.");
-                return true;
-            }
-
-            ChestHuntOutcome outcome;
-            if (session.IsOpeningLifeSaver)
-            {
-                outcome = calibration.IsSaverVisible(frame)
-                    ? ChestHuntOutcome.Unknown
-                    : ChestHuntOutcome.LifeSaver;
-            }
-            else
-            {
-                outcome = calibration.DetectOutcome(frame, nextPosition.Value);
+                outcome = session.IsOpeningLifeSaver
+                    ? ChestHuntOutcome.LifeSaver
+                    : ChestHuntOutcome.Reward;
+                _log.Info(
+                    $"Chest Hunt row {nextPosition.Value.Row}, column {nextPosition.Value.Column} "
+                    + $"has no special result signature; continuing as {outcome} using the legacy fallback.");
             }
 
             if (outcome == ChestHuntOutcome.Mimic)
@@ -265,12 +330,6 @@ public sealed class ChestHuntAutomationService
             _log.Info(
                 $"Chest Hunt row {nextPosition.Value.Row}, column {nextPosition.Value.Column}: "
                 + $"{outcome}. {step.Reason}");
-
-            if (outcome == ChestHuntOutcome.Unknown)
-            {
-                PauseForSafety("Chest Hunt outcome was not recognized; no further chests will be opened.");
-                return true;
-            }
 
             if (outcome == ChestHuntOutcome.HuntEnded)
             {

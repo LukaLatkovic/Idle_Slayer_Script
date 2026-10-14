@@ -8,11 +8,18 @@ public sealed class ChestHuntSession
     private bool _isComplete;
     private int _openedChestIndex;
 
-    public ChestHuntSession(ChestHuntGridPosition saverPosition)
+    public ChestHuntSession(
+        ChestHuntGridPosition saverPosition,
+        IEnumerable<ChestHuntGridPosition>? alreadyOpened = null,
+        bool openLifeSaverFirst = false)
     {
         SaverPosition = saverPosition;
+        HashSet<ChestHuntGridPosition> opened = new(alreadyOpened ?? []);
         _remainingChests = new Queue<ChestHuntGridPosition>(
-            ChestHuntCalibration.Positions.Where(position => position != saverPosition));
+            ChestHuntCalibration.Positions.Where(
+                position => position != saverPosition && !opened.Contains(position)));
+        _openedChestIndex = opened.Count;
+        _openingLifeSaver = openLifeSaverFirst;
     }
 
     public ChestHuntGridPosition SaverPosition { get; }

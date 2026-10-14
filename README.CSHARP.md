@@ -19,7 +19,7 @@ The first vertical slice provides:
 - optional persisted gameplay-HUD calibration that blocks input when the normal HUD is not recognized;
 - a shape-calibrated Silver Box collector that refuses to click when the claim icon is absent;
 - a tested Chest Hunt decision engine covering the normal, perfect, and missing-saver strategies;
-- automatic Chest Hunt execution from a fresh grid, including Saver strategy, Mimic and 2x handling, and result-screen closing;
+- automatic Chest Hunt execution, including click retries, partial-grid continuation, Saver strategy, Mimic and 2x handling, and result-screen closing;
 - the complete legacy General, Minigames, and Crafting configuration model;
 - one-time import from a legacy `IdleRunnerLogs/Settings.txt` file when upgrading;
 - dependency-free executable tests for the core safety behavior.
@@ -57,7 +57,7 @@ dotnet run --project tools/IdleRunner.InputProbe -- capture artifacts/gameplay.b
 The desktop application stores settings, visual calibration, and logs under `%LOCALAPPDATA%\IdleRunner`.
 Configuration changes are saved immediately. Options for modules that have not yet been ported are marked `MODULE PENDING` in the desktop application.
 
-Chest Hunt strategy and Lockpicking timing are connected to the calibrated 10 x 3 grid. The runner recognizes closed chests by shape, verifies that each selected chest opened, classifies Mimic and 2x result signatures, opens the Saver according to the configured strategy, and closes the result screen. It starts only from a fresh grid because Mimic history cannot be reconstructed safely after the user has already opened chests.
+Chest Hunt strategy and Lockpicking timing are connected to the calibrated 10 x 3 grid. The runner recognizes closed chests by shape, retries ignored clicks, classifies Mimic and 2x result signatures, opens the Saver according to the configured strategy, and closes the result screen. It can continue a partially opened grid by skipping opened cells and using the original application's no-Mimic fallback state when earlier outcomes are unavailable.
 
 ## Safety behavior
 
@@ -72,12 +72,12 @@ The **Calibrate gameplay screen** action captures the normal gameplay HUD while 
 
 The Silver Box collector has a separate calibration in **General**. Calibration is accepted only while the bright, high-contrast claim icon is visible in its expected top-center position. The collector then checks the complete icon shape in a bounded search area before clicking; a plain background or the remaining-box counter is rejected.
 
-The Chest Hunt calibration in **Minigames** must be run while the yellow Saver marker and multiple closed chests are visible. It records both the Saver and the dominant closed-chest shape, verifies that exactly one Saver matches, and always leaves automation paused. Calibration itself never opens a chest. Once automation is started, a fresh Chest Hunt is handled automatically; a partially played hunt is reported and left untouched.
+The Chest Hunt calibration in **Minigames** must be run while the yellow Saver marker and multiple closed chests are visible. It records both the Saver and the dominant closed-chest shape, verifies that exactly one Saver matches, and always leaves automation paused. Calibration itself never opens a chest. Once automation is started, visible Chest Hunts are handled automatically, including partially played grids.
 
-The Windows adapter checks foreground ownership again immediately before calling `SendInput`.
-Each jump-and-boost command holds both mouse buttons for 35 milliseconds so the Unity input loop can observe the pressed state before they are released. Keyboard `SendInput` and direct window messages were tested against the installed Unity 6000.3 build and were ignored by the game; mouse input was confirmed from captured game frames.
+The Windows adapter checks foreground ownership again immediately before emitting input.
+Each jump-and-boost command holds both mouse buttons for 35 milliseconds so the Unity input loop can observe the pressed state before they are released. Targeted UI and Chest Hunt clicks use the legacy `mouse_event` path, hold for 100 milliseconds, and leave the cursor on the target until the next action because the installed Unity 6000.3 build evaluates the cursor position on a later frame. Keyboard `SendInput` and direct window messages were tested and ignored by the game.
 
-Because Unity evaluates the real cursor location for mouse input, the Windows adapter saves the cursor position and parks it at the center of the game client area while automation is active. It restores the original position when automation is paused, the game loses foreground focus, or the application exits normally.
+Because Unity evaluates the real cursor location for mouse input, the Windows adapter saves the cursor position and parks it at the center during jump-and-boost input. Targeted clicks keep it on their target until the next action. The original position is restored when automation is paused, the game loses foreground focus, or the application exits normally.
 
 ## Next migration slices
 

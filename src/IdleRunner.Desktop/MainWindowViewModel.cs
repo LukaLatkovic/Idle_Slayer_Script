@@ -149,7 +149,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         : "Icon not calibrated - collector will not click.";
 
     public string ChestHuntCalibrationStatus => _chestHuntVisualService.HasCalibration
-        ? "Ready - fresh Chest Hunts will run automatically."
+        ? "Ready - Chest Hunts will run automatically."
         : "Not calibrated - capture while the yellow Saver marker is visible.";
 
     public string CommandCountLabel => _commandCount == 1
@@ -488,7 +488,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             _log.Info(
                 $"Chest Hunt layout calibrated. Saver located at row {saver.Position.Row}, "
                 + $"column {saver.Position.Column} with confidence {saver.Score:P1}.");
-            _log.Info("Chest Hunt automation is ready and will start from the next fresh grid.");
+            _log.Info("Chest Hunt automation is ready and will start when a grid is visible.");
         }
         catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
         {

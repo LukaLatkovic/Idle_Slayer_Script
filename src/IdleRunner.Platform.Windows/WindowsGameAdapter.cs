@@ -8,6 +8,7 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
 {
     private const string GameWindowTitle = "Idle Slayer";
     private const int InputPulseMilliseconds = 35;
+    private const int TargetedClickMilliseconds = 100;
     private const uint InputMouse = 0;
     private const uint MouseEventLeftDown = 0x0002;
     private const uint MouseEventLeftUp = 0x0004;
@@ -169,21 +170,17 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
             return false;
         }
 
-        SendInputEvents([NativeMethods.Input.MouseButton(MouseEventLeftDown)]);
+        NativeMethods.MouseEvent(MouseEventLeftDown, 0, 0, 0, nuint.Zero);
 
         try
         {
-            await Task.Delay(InputPulseMilliseconds, cancellationToken).ConfigureAwait(false);
+            await Task.Delay(TargetedClickMilliseconds, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
-            SendInputEvents([NativeMethods.Input.MouseButton(MouseEventLeftUp)]);
+            NativeMethods.MouseEvent(MouseEventLeftUp, 0, 0, 0, nuint.Zero);
 
-            if (NativeMethods.GetForegroundWindow() == window)
-            {
-                TryParkCursor(window);
-            }
-            else
+            if (NativeMethods.GetForegroundWindow() != window)
             {
                 RestoreCursor();
             }
@@ -359,6 +356,14 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
             uint inputCount,
             [In] Input[] inputs,
             int inputSize);
+
+        [LibraryImport("user32.dll", EntryPoint = "mouse_event")]
+        internal static partial void MouseEvent(
+            uint flags,
+            uint deltaX,
+            uint deltaY,
+            uint data,
+            nuint extraInformation);
 
         [StructLayout(LayoutKind.Sequential)]
         internal struct Rect

@@ -18,7 +18,7 @@ public sealed class ChestHuntCalibration
     private static readonly FrameRectangle OutcomeBannerRegion = new(300, 140, 680, 110);
     private static readonly FrameRectangle MimicSignatureRegion = new(428, 205, 13, 13);
     private static readonly FrameRectangle DoubleRewardSignatureRegion = new(494, 204, 13, 13);
-    private static readonly FrameRectangle EndButtonRegion = new(530, 665, 220, 55);
+    private static readonly FrameRectangle EndButtonRegion = new(500, 620, 280, 70);
     private static readonly FrameRectangle PerfectChestRegion = new(447, 429, 20, 20);
 
     public ChestHuntCalibration(
