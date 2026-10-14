@@ -187,6 +187,12 @@ internal static class Program
             return Task.FromResult(true);
         }
 
+        public Task ReleaseInputAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+
         public Task<bool> ExecuteAsync(AutomationAction action, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();

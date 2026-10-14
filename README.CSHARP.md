@@ -8,7 +8,7 @@ The first vertical slice provides:
 
 - a .NET 10 WPF desktop application;
 - an automation core that is independent of Windows and UI code;
-- a Windows adapter that locates the Idle Slayer window and emits `Space` and `Left Shift` scan-code pulses through `SendInput`;
+- a Windows adapter that locates the Idle Slayer window and emits left-click jump and right-click boost pulses through `SendInput`;
 - explicit game activation when the user starts automation;
 - enforced foreground-window and 1280 x 720 client-area safety gates;
 - a paused-by-default startup state;
@@ -26,6 +26,7 @@ This version intentionally does not copy the legacy pixel-color decision logic. 
 | `IdleRunner.Platform.Windows` | Idle Slayer window discovery and guarded Win32 keyboard input. |
 | `IdleRunner.Desktop` | WPF control surface, settings persistence, and logging. |
 | `IdleRunner.Core.Tests` | Small executable test suite with no external test packages. |
+| `IdleRunner.InputProbe` | One-shot Windows input diagnostics used to verify keyboard and mouse behavior against a running game build. |
 
 ## Build and run
 
@@ -36,6 +37,8 @@ dotnet build IdleRunner.slnx
 dotnet run --project tests/IdleRunner.Core.Tests
 dotnet run --project src/IdleRunner.Desktop
 ```
+
+The input probe is a development tool and is not required for normal application use.
 
 The desktop application stores settings and logs under `%LOCALAPPDATA%\IdleRunner`.
 
@@ -49,7 +52,9 @@ The application activates Idle Slayer only as a direct response to the user pres
 4. its client area is exactly 1280 x 720.
 
 The Windows adapter checks foreground ownership again immediately before calling `SendInput`.
-Each jump-and-boost command holds both keys for 35 milliseconds so the Unity input loop can observe the pressed state before they are released.
+Each jump-and-boost command holds both mouse buttons for 35 milliseconds so the Unity input loop can observe the pressed state before they are released. Keyboard `SendInput` and direct window messages were tested against the installed Unity 6000.3 build and were ignored by the game; mouse input was confirmed from captured game frames.
+
+Because Unity evaluates the real cursor location for mouse input, the Windows adapter saves the cursor position and parks it at the center of the game client area while automation is active. It restores the original position when automation is paused, the game loses foreground focus, or the application exits normally.
 
 ## Next migration slices
 

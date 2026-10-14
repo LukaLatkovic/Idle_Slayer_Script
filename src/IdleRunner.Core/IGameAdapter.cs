@@ -6,5 +6,7 @@ public interface IGameAdapter
 
     Task<bool> TryActivateAsync(CancellationToken cancellationToken);
 
+    Task ReleaseInputAsync(CancellationToken cancellationToken);
+
     Task<bool> ExecuteAsync(AutomationAction action, CancellationToken cancellationToken);
 }

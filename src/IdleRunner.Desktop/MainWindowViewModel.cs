@@ -127,6 +127,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         if (IsRunning)
         {
             _engine.SetPaused(true);
+            await _gameAdapter.ReleaseInputAsync(_shutdown.Token);
             return;
         }
 
@@ -156,6 +157,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public async Task ShutdownAsync()
     {
         _engine.SetPaused(true);
+        await _gameAdapter.ReleaseInputAsync(CancellationToken.None);
         _settingsStore.Save(_settings.Normalize());
         _shutdown.Cancel();
 
