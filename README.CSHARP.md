@@ -18,6 +18,7 @@ The first vertical slice provides:
 - named visual observations that combine multiple independently scored anchors;
 - optional persisted gameplay-HUD calibration that blocks input when the normal HUD is not recognized;
 - a shape-calibrated Silver Box collector that refuses to click when the claim icon is absent;
+- a tested Chest Hunt decision engine covering the normal, perfect, and missing-saver strategies;
 - the complete legacy General, Minigames, and Crafting configuration model;
 - one-time import from a legacy `IdleRunnerLogs/Settings.txt` file when upgrading;
 - dependency-free executable tests for the core safety behavior.
@@ -55,6 +56,8 @@ dotnet run --project tools/IdleRunner.InputProbe -- capture artifacts/gameplay.b
 The desktop application stores settings, visual calibration, and logs under `%LOCALAPPDATA%\IdleRunner`.
 Configuration changes are saved immediately. Options for modules that have not yet been ported are marked `MODULE PENDING` in the desktop application.
 
+Chest Hunt strategy and Lockpicking timing are now implemented independently from screen control. The Minigames page marks them as `STRATEGY PORTED` or `TIMING PORTED`; chest-grid detection and clicking remain disabled until current-game visual rules are captured and tested.
+
 ## Safety behavior
 
 The application activates Idle Slayer only as a direct response to the user pressing **Start automation**. It does not repeatedly steal focus. Keyboard input is emitted only when all of these conditions are true:
@@ -76,7 +79,7 @@ Because Unity evaluates the real cursor location for mouse input, the Windows ad
 ## Next migration slices
 
 1. Capture and approve named visual rules for specific Idle Slayer states.
-2. Port bonus-stage, chest-hunt, and ascending-heights behavior one module at a time.
+2. Connect the tested Chest Hunt strategy to calibrated chest-grid observations and guarded clicks.
 3. Add captured regression fixtures for every observation rule.
 4. Prototype an optional MelonLoader adapter for direct state and actions, pinned to a verified Idle Slayer version.
 5. Keep the external Windows adapter as the fallback when the internal game interface changes.

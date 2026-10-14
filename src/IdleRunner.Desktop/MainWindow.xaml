@@ -600,7 +600,7 @@
                     <StackPanel MaxWidth="760" HorizontalAlignment="Left">
                         <TextBlock Text="MINIGAME STRATEGY" Style="{StaticResource SectionLabelStyle}" />
                         <TextBlock Margin="0,7,0,28"
-                                   Text="These options match the original Idle Runner configuration. Their automation modules are still being migrated."
+                                   Text="These options match the original configuration. Chest Hunt decisions and timing are now ported; visual execution remains disabled until its screen rules are calibrated."
                                    Style="{StaticResource SettingDescriptionStyle}" />
 
                         <Grid Margin="0,0,0,28">
@@ -625,7 +625,8 @@
                                 <TextBlock Text="No Lockpicking divinity" Style="{StaticResource SettingTitleStyle}" />
                                 <TextBlock Text="Use longer Chest Hunt waits when Lockpicking is unavailable."
                                            Style="{StaticResource SettingDescriptionStyle}" />
-                                <TextBlock Text="MODULE PENDING" Style="{StaticResource PendingLabelStyle}" />
+                                <TextBlock Text="TIMING PORTED - VISUAL EXECUTOR PENDING"
+                                           Style="{StaticResource PendingLabelStyle}" />
                             </StackPanel>
                         </Grid>
 
@@ -638,7 +639,8 @@
                                 <TextBlock Text="No Reinforced Crystal Saver" Style="{StaticResource SettingTitleStyle}" />
                                 <TextBlock Text="Adjust the Chest Hunt strategy when the permanent saver is unavailable."
                                            Style="{StaticResource SettingDescriptionStyle}" />
-                                <TextBlock Text="MODULE PENDING" Style="{StaticResource PendingLabelStyle}" />
+                                <TextBlock Text="STRATEGY PORTED - VISUAL EXECUTOR PENDING"
+                                           Style="{StaticResource PendingLabelStyle}" />
                             </StackPanel>
                         </Grid>
 
@@ -651,7 +653,8 @@
                                 <TextBlock Text="Perfect Chest Hunt strategy" Style="{StaticResource SettingTitleStyle}" />
                                 <TextBlock Text="Prioritize a perfect result by delaying the Life Saver until the 2x reward is found."
                                            Style="{StaticResource SettingDescriptionStyle}" />
-                                <TextBlock Text="MODULE PENDING" Style="{StaticResource PendingLabelStyle}" />
+                                <TextBlock Text="STRATEGY PORTED - VISUAL EXECUTOR PENDING"
+                                           Style="{StaticResource PendingLabelStyle}" />
                             </StackPanel>
                         </Grid>
                     </StackPanel>

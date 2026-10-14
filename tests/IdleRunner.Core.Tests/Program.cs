@@ -18,6 +18,10 @@ internal static class Program
             ("Named observation requires multiple visual anchors", NamedObservationRequiresMultipleAnchorsAsync),
             ("Gameplay HUD calibration recognizes its source frame", GameplayHudCalibrationRecognizesSourceAsync),
             ("Silver Box calibration rejects a missing icon", SilverBoxCalibrationRejectsMissingIconAsync),
+            ("Chest Hunt normal strategy opens the Life Saver after two chests", ChestHuntNormalStrategyAsync),
+            ("Chest Hunt perfect strategy preserves its search limits", ChestHuntPerfectStrategyAsync),
+            ("Chest Hunt special outcomes override the strategy", ChestHuntSpecialOutcomesAsync),
+            ("Chest Hunt timing follows Lockpicking availability", ChestHuntTimingFollowsSettingsAsync),
             ("Paused engine does not send input", PausedEngineDoesNotSendInputAsync),
             ("Missing game does not send input", MissingGameDoesNotSendInputAsync),
             ("Background game does not send input", BackgroundGameDoesNotSendInputAsync),
@@ -273,6 +277,118 @@ internal static class Program
         AssertTrue(
             rejectedColorfulBackground,
             "Expected a colorful background without the icon's white and black detail to be rejected.");
+        return Task.CompletedTask;
+    }
+
+    private static Task ChestHuntNormalStrategyAsync()
+    {
+        AutomationSettings settings = new()
+        {
+            PerfectChestHunt = false,
+            NoReinforcedCrystalSaver = false
+        };
+
+        ChestHuntStep first = ChestHuntStrategy.Decide(
+            openedChestIndex: 0,
+            ChestHuntStrategyState.NoMimic,
+            ChestHuntOutcome.Reward,
+            settings);
+        ChestHuntStep second = ChestHuntStrategy.Decide(
+            openedChestIndex: 1,
+            first.NextState,
+            ChestHuntOutcome.Reward,
+            settings);
+
+        AssertEqual(ChestHuntAction.ContinueOpeningGrid, first.Action);
+        AssertEqual(ChestHuntStrategyState.NoMimic, first.NextState);
+        AssertEqual(ChestHuntAction.OpenLifeSaver, second.Action);
+        AssertEqual(ChestHuntStrategyState.Normal, second.NextState);
+
+        settings.NoReinforcedCrystalSaver = true;
+        ChestHuntStep withoutReinforcedSaver = ChestHuntStrategy.Decide(
+            openedChestIndex: 0,
+            ChestHuntStrategyState.NoMimic,
+            ChestHuntOutcome.Reward,
+            settings);
+        AssertEqual(ChestHuntAction.OpenLifeSaver, withoutReinforcedSaver.Action);
+        return Task.CompletedTask;
+    }
+
+    private static Task ChestHuntPerfectStrategyAsync()
+    {
+        AutomationSettings settings = new()
+        {
+            PerfectChestHunt = true
+        };
+
+        ChestHuntStep firstMimic = ChestHuntStrategy.Decide(
+            0,
+            ChestHuntStrategyState.NoMimic,
+            ChestHuntOutcome.Mimic,
+            settings);
+        ChestHuntStep secondMimic = ChestHuntStrategy.Decide(
+            1,
+            firstMimic.NextState,
+            ChestHuntOutcome.Mimic,
+            settings);
+
+        AssertEqual(ChestHuntStrategyState.OneMimic, firstMimic.NextState);
+        AssertEqual(ChestHuntStrategyState.TwoMimics, secondMimic.NextState);
+
+        AssertEqual(
+            ChestHuntAction.ContinueOpeningGrid,
+            ChestHuntStrategy.Decide(12, ChestHuntStrategyState.NoMimic, ChestHuntOutcome.Reward, settings).Action);
+        AssertEqual(
+            ChestHuntAction.OpenLifeSaver,
+            ChestHuntStrategy.Decide(13, ChestHuntStrategyState.NoMimic, ChestHuntOutcome.Reward, settings).Action);
+        AssertEqual(
+            ChestHuntAction.OpenLifeSaver,
+            ChestHuntStrategy.Decide(15, ChestHuntStrategyState.OneMimic, ChestHuntOutcome.Reward, settings).Action);
+        AssertEqual(
+            ChestHuntAction.OpenLifeSaver,
+            ChestHuntStrategy.Decide(21, ChestHuntStrategyState.TwoMimics, ChestHuntOutcome.Reward, settings).Action);
+        return Task.CompletedTask;
+    }
+
+    private static Task ChestHuntSpecialOutcomesAsync()
+    {
+        ChestHuntStep doubleReward = ChestHuntStrategy.Decide(
+            4,
+            ChestHuntStrategyState.OneMimic,
+            ChestHuntOutcome.DoubleReward,
+            Settings);
+        ChestHuntStep ended = ChestHuntStrategy.Decide(
+            4,
+            ChestHuntStrategyState.OneMimic,
+            ChestHuntOutcome.HuntEnded,
+            Settings);
+        ChestHuntStep afterLifeSaver = ChestHuntStrategy.Decide(
+            4,
+            ChestHuntStrategyState.OneMimic,
+            ChestHuntOutcome.LifeSaver,
+            Settings);
+
+        AssertEqual(ChestHuntAction.OpenLifeSaver, doubleReward.Action);
+        AssertEqual(ChestHuntStrategyState.Normal, doubleReward.NextState);
+        AssertEqual(ChestHuntAction.Stop, ended.Action);
+        AssertEqual(ChestHuntAction.ContinueOpeningGrid, afterLifeSaver.Action);
+        AssertEqual(ChestHuntStrategyState.Normal, afterLifeSaver.NextState);
+        return Task.CompletedTask;
+    }
+
+    private static Task ChestHuntTimingFollowsSettingsAsync()
+    {
+        ChestHuntTimingProfile withoutLockpicking = ChestHuntTimingProfile.FromSettings(
+            new AutomationSettings { NoLockpicking = true });
+        ChestHuntTimingProfile withLockpicking = ChestHuntTimingProfile.FromSettings(
+            new AutomationSettings { NoLockpicking = false });
+
+        AssertEqual(TimeSpan.FromSeconds(4), withoutLockpicking.InitialDelay);
+        AssertEqual(TimeSpan.FromMilliseconds(1_500), withoutLockpicking.ChestRevealDelay);
+        AssertEqual(TimeSpan.FromMilliseconds(2_500), withoutLockpicking.MimicRevealDelay);
+        AssertEqual(TimeSpan.FromSeconds(2), withLockpicking.InitialDelay);
+        AssertEqual(TimeSpan.FromMilliseconds(550), withLockpicking.ChestRevealDelay);
+        AssertEqual(TimeSpan.FromMilliseconds(1_500), withLockpicking.MimicRevealDelay);
         return Task.CompletedTask;
     }
 
