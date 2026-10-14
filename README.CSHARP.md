@@ -8,7 +8,7 @@ The first vertical slice provides:
 
 - a .NET 10 WPF desktop application;
 - an automation core that is independent of Windows and UI code;
-- a Windows adapter that locates the Idle Slayer window and emits `Up` and `Right` through `SendInput`;
+- a Windows adapter that locates the Idle Slayer window and emits `Space` and `Left Shift` scan-code pulses through `SendInput`;
 - explicit game activation when the user starts automation;
 - enforced foreground-window and 1280 x 720 client-area safety gates;
 - a paused-by-default startup state;
@@ -49,6 +49,7 @@ The application activates Idle Slayer only as a direct response to the user pres
 4. its client area is exactly 1280 x 720.
 
 The Windows adapter checks foreground ownership again immediately before calling `SendInput`.
+Each jump-and-boost command holds both keys for 35 milliseconds so the Unity input loop can observe the pressed state before they are released.
 
 ## Next migration slices
 

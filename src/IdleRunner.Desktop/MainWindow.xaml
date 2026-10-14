@@ -175,7 +175,8 @@
                     <TextBlock Text="✓ Starts paused" Margin="0,0,0,9" />
                     <TextBlock Text="✓ Idle Slayer must be foreground" Margin="0,0,0,9" />
                     <TextBlock Text="✓ Client area must be 1280 × 720" Margin="0,0,0,9" />
-                    <TextBlock Text="✓ Single application instance" />
+                    <TextBlock Text="✓ Single application instance" Margin="0,0,0,9" />
+                    <TextBlock Text="✓ Space + Left Shift, 35 ms pulse" />
                 </StackPanel>
 
                 <Border Grid.Row="2" Background="{StaticResource DividerBrush}" />

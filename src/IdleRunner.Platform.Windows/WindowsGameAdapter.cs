@@ -7,10 +7,12 @@ namespace IdleRunner.Platform.Windows;
 public sealed partial class WindowsGameAdapter : IGameAdapter
 {
     private const string GameWindowTitle = "Idle Slayer";
-    private const ushort VirtualKeyUp = 0x26;
-    private const ushort VirtualKeyRight = 0x27;
+    private const ushort ScanCodeSpace = 0x39;
+    private const ushort ScanCodeLeftShift = 0x2A;
+    private const int InputPulseMilliseconds = 35;
     private const uint InputKeyboard = 1;
     private const uint KeyEventKeyUp = 0x0002;
+    private const uint KeyEventScanCode = 0x0008;
     private const int ShowWindowRestore = 9;
 
     private nint _gameWindow;
@@ -61,7 +63,7 @@ public sealed partial class WindowsGameAdapter : IGameAdapter
             clientRect.Bottom - clientRect.Top));
     }
 
-    public Task<bool> ExecuteAsync(AutomationAction action, CancellationToken cancellationToken)
+    public async Task<bool> ExecuteAsync(AutomationAction action, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -75,28 +77,32 @@ public sealed partial class WindowsGameAdapter : IGameAdapter
             || !NativeMethods.IsWindow(window)
             || NativeMethods.GetForegroundWindow() != window)
         {
-            return Task.FromResult(false);
+            return false;
         }
 
-        NativeMethods.Input[] inputs =
+        NativeMethods.Input[] keyDownInputs =
         [
-            NativeMethods.Input.Keyboard(VirtualKeyUp, keyUp: false),
-            NativeMethods.Input.Keyboard(VirtualKeyUp, keyUp: true),
-            NativeMethods.Input.Keyboard(VirtualKeyRight, keyUp: false),
-            NativeMethods.Input.Keyboard(VirtualKeyRight, keyUp: true)
+            NativeMethods.Input.KeyboardScanCode(ScanCodeSpace, keyUp: false),
+            NativeMethods.Input.KeyboardScanCode(ScanCodeLeftShift, keyUp: false)
+        ];
+        NativeMethods.Input[] keyUpInputs =
+        [
+            NativeMethods.Input.KeyboardScanCode(ScanCodeLeftShift, keyUp: true),
+            NativeMethods.Input.KeyboardScanCode(ScanCodeSpace, keyUp: true)
         ];
 
-        uint sent = NativeMethods.SendInput(
-            (uint)inputs.Length,
-            inputs,
-            Marshal.SizeOf<NativeMethods.Input>());
+        SendKeyboardEvents(keyDownInputs);
 
-        if (sent != inputs.Length)
+        try
         {
-            throw new Win32Exception(Marshal.GetLastWin32Error(), "Windows did not accept all keyboard input events.");
+            await Task.Delay(InputPulseMilliseconds, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            SendKeyboardEvents(keyUpInputs);
         }
 
-        return Task.FromResult(true);
+        return true;
     }
 
     public Task<bool> TryActivateAsync(CancellationToken cancellationToken)
@@ -118,6 +124,19 @@ public sealed partial class WindowsGameAdapter : IGameAdapter
 
         bool activated = NativeMethods.SetForegroundWindow(window);
         return Task.FromResult(activated || NativeMethods.GetForegroundWindow() == window);
+    }
+
+    private static void SendKeyboardEvents(NativeMethods.Input[] inputs)
+    {
+        uint sent = NativeMethods.SendInput(
+            (uint)inputs.Length,
+            inputs,
+            Marshal.SizeOf<NativeMethods.Input>());
+
+        if (sent != inputs.Length)
+        {
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "Windows did not accept all keyboard input events.");
+        }
     }
 
     private static partial class NativeMethods
@@ -173,7 +192,7 @@ public sealed partial class WindowsGameAdapter : IGameAdapter
             internal uint Type;
             internal InputUnion Data;
 
-            internal static Input Keyboard(ushort virtualKey, bool keyUp)
+            internal static Input KeyboardScanCode(ushort scanCode, bool keyUp)
             {
                 return new Input
                 {
@@ -182,8 +201,8 @@ public sealed partial class WindowsGameAdapter : IGameAdapter
                     {
                         Keyboard = new KeyboardInput
                         {
-                            VirtualKey = virtualKey,
-                            Flags = keyUp ? KeyEventKeyUp : 0
+                            ScanCode = scanCode,
+                            Flags = KeyEventScanCode | (keyUp ? KeyEventKeyUp : 0)
                         }
                     }
                 };
