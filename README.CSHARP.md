@@ -12,9 +12,10 @@ The first vertical slice provides:
 - explicit game activation when the user starts automation;
 - enforced foreground-window and 1280 x 720 client-area safety gates;
 - a paused-by-default startup state;
-- a live count of keyboard commands confirmed by the Windows adapter;
+- a live count of input pulses confirmed by the Windows adapter;
 - persisted interval settings and local activity logs;
 - client-only game frame capture with a lighting-tolerant grayscale template matcher;
+- named visual observations that combine multiple independently scored anchors;
 - dependency-free executable tests for the core safety behavior.
 
 This version intentionally does not copy the legacy single-pixel decision logic. It now provides typed BGRA frames and normalized luminance template matching so visual rules can use shapes and local contrast instead of one exact RGB value. An optional direct game-state adapter can still be added behind the same platform boundary.
@@ -27,7 +28,7 @@ This version intentionally does not copy the legacy single-pixel decision logic.
 | `IdleRunner.Platform.Windows` | Idle Slayer window discovery and guarded Win32 keyboard input. |
 | `IdleRunner.Desktop` | WPF control surface, settings persistence, and logging. |
 | `IdleRunner.Core.Tests` | Small executable test suite with no external test packages. |
-| `IdleRunner.InputProbe` | One-shot Windows input diagnostics used to verify keyboard and mouse behavior against a running game build. |
+| `IdleRunner.InputProbe` | One-shot Windows input diagnostics and repeatable BMP frame capture against a running game build. |
 
 ## Build and run
 
@@ -40,6 +41,12 @@ dotnet run --project src/IdleRunner.Desktop
 ```
 
 The input probe is a development tool and is not required for normal application use.
+
+To capture the current game client for observation development, run:
+
+```powershell
+dotnet run --project tools/IdleRunner.InputProbe -- capture artifacts/gameplay.bmp
+```
 
 The desktop application stores settings and logs under `%LOCALAPPDATA%\IdleRunner`.
 
@@ -59,7 +66,7 @@ Because Unity evaluates the real cursor location for mouse input, the Windows ad
 
 ## Next migration slices
 
-1. Build replayable, named observations on top of the frame capture and template matcher.
+1. Capture and approve named visual rules for specific Idle Slayer states.
 2. Port bonus-stage, chest-hunt, and ascending-heights behavior one module at a time.
 3. Add captured regression fixtures for every observation rule.
 4. Prototype an optional MelonLoader adapter for direct state and actions, pinned to a verified Idle Slayer version.

@@ -14,6 +14,7 @@ internal static class Program
             ("Game frame preserves BGRA pixels", GameFramePreservesPixelsAsync),
             ("Luminance matching tolerates brightness changes", LuminanceMatchingToleratesBrightnessAsync),
             ("Template search locates the strongest shape", TemplateSearchLocatesStrongestShapeAsync),
+            ("Named observation requires multiple visual anchors", NamedObservationRequiresMultipleAnchorsAsync),
             ("Paused engine does not send input", PausedEngineDoesNotSendInputAsync),
             ("Missing game does not send input", MissingGameDoesNotSendInputAsync),
             ("Background game does not send input", BackgroundGameDoesNotSendInputAsync),
@@ -112,6 +113,65 @@ internal static class Program
         AssertEqual(4, result.Left);
         AssertEqual(2, result.Top);
         AssertTrue(result.Score > 0.999, $"Expected an exact structural match, received {result.Score:F4}.");
+        return Task.CompletedTask;
+    }
+
+    private static Task NamedObservationRequiresMultipleAnchorsAsync()
+    {
+        byte[,] firstShape =
+        {
+            { 10, 90 },
+            { 70, 20 }
+        };
+        byte[,] secondShape =
+        {
+            { 100, 25 },
+            { 35, 80 }
+        };
+        GameFrame reference = CreateCompositeGrayscaleFrame(
+            8,
+            4,
+            3,
+            (firstShape, 0, 0, 0),
+            (secondShape, 5, 0, 0));
+        LuminanceTemplate firstTemplate = LuminanceTemplate.FromFrame(
+            reference,
+            new FrameRectangle(0, 0, 2, 2));
+        LuminanceTemplate secondTemplate = LuminanceTemplate.FromFrame(
+            reference,
+            new FrameRectangle(5, 0, 2, 2));
+        VisualObservationDefinition observation = new(
+            "Normal gameplay HUD",
+            [
+                new VisualAnchorDefinition(
+                    "Left action slot",
+                    firstTemplate,
+                    new FrameRectangle(0, 0, 4, 4),
+                    minimumScore: 0.99),
+                new VisualAnchorDefinition(
+                    "Right action slot",
+                    secondTemplate,
+                    new FrameRectangle(4, 0, 4, 4),
+                    minimumScore: 0.99)
+            ]);
+        GameFrame completeFrame = CreateCompositeGrayscaleFrame(
+            8,
+            4,
+            5,
+            (firstShape, 1, 1, 20),
+            (secondShape, 5, 1, 20));
+        GameFrame incompleteFrame = CreateCompositeGrayscaleFrame(
+            8,
+            4,
+            5,
+            (firstShape, 1, 1, 20));
+
+        VisualObservationResult completeResult = observation.Evaluate(completeFrame);
+        VisualObservationResult incompleteResult = observation.Evaluate(incompleteFrame);
+
+        AssertTrue(completeResult.IsMatch, "Expected both visual anchors to match.");
+        AssertEqual(false, incompleteResult.IsMatch);
+        AssertEqual(2, completeResult.Anchors.Count);
         return Task.CompletedTask;
     }
 
@@ -234,6 +294,19 @@ internal static class Program
         int top,
         int brightnessOffset = 0)
     {
+        return CreateCompositeGrayscaleFrame(
+            width,
+            height,
+            background,
+            (shape, left, top, brightnessOffset));
+    }
+
+    private static GameFrame CreateCompositeGrayscaleFrame(
+        int width,
+        int height,
+        byte background,
+        params (byte[,] Shape, int Left, int Top, int BrightnessOffset)[] placements)
+    {
         byte[] pixels = new byte[checked(width * height * 4)];
 
         for (int index = 0; index < width * height; index++)
@@ -245,15 +318,18 @@ internal static class Program
             pixels[offset + 3] = 255;
         }
 
-        for (int y = 0; y < shape.GetLength(0); y++)
+        foreach ((byte[,] shape, int left, int top, int brightnessOffset) in placements)
         {
-            for (int x = 0; x < shape.GetLength(1); x++)
+            for (int y = 0; y < shape.GetLength(0); y++)
             {
-                byte value = checked((byte)(shape[y, x] + brightnessOffset));
-                int offset = checked(((top + y) * width + left + x) * 4);
-                pixels[offset] = value;
-                pixels[offset + 1] = value;
-                pixels[offset + 2] = value;
+                for (int x = 0; x < shape.GetLength(1); x++)
+                {
+                    byte value = checked((byte)(shape[y, x] + brightnessOffset));
+                    int offset = checked(((top + y) * width + left + x) * 4);
+                    pixels[offset] = value;
+                    pixels[offset + 1] = value;
+                    pixels[offset + 2] = value;
+                }
             }
         }
 

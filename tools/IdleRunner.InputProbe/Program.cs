@@ -1,5 +1,8 @@
 using System.ComponentModel;
+using System.IO;
 using System.Runtime.InteropServices;
+using IdleRunner.Core;
+using IdleRunner.Platform.Windows;
 
 namespace IdleRunner.InputProbe;
 
@@ -19,9 +22,23 @@ internal static partial class Program
 
     private static async Task<int> Main(string[] args)
     {
+        if (args.Length is < 1 or > 2)
+        {
+            WriteUsage();
+            return 2;
+        }
+
+        if (string.Equals(args[0], "capture", StringComparison.OrdinalIgnoreCase))
+        {
+            string outputPath = args.Length == 2
+                ? args[1]
+                : Path.Combine(Environment.CurrentDirectory, "idle-slayer-frame.bmp");
+            return await CaptureFrameAsync(outputPath);
+        }
+
         if (args.Length != 1)
         {
-            Console.Error.WriteLine("Usage: IdleRunner.InputProbe <virtual-space|scan-space|mouse-left|mouse-right|mouse-jump-boost|mouse-safe-jump-boost|close-test-panels>");
+            WriteUsage();
             return 2;
         }
 
@@ -88,6 +105,66 @@ internal static partial class Program
         }
 
         return 0;
+    }
+
+    private static async Task<int> CaptureFrameAsync(string outputPath)
+    {
+        WindowsGameFrameSource source = new();
+        GameFrame? frame = await source.CaptureAsync(CancellationToken.None);
+        if (frame is null)
+        {
+            Console.Error.WriteLine("Idle Slayer did not provide a capturable client frame.");
+            return 3;
+        }
+
+        string fullPath = Path.GetFullPath(outputPath);
+        string? directory = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrEmpty(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        WriteBitmap(fullPath, frame);
+
+        LuminanceRange range = frame.MeasureLuminanceRange(sampleStep: 8);
+        Console.WriteLine(
+            $"Captured {frame.Width} x {frame.Height}, luminance {range.Darkest}-{range.Lightest}: {fullPath}");
+        return 0;
+    }
+
+    private static void WriteBitmap(string path, GameFrame frame)
+    {
+        const int fileHeaderSize = 14;
+        const int bitmapHeaderSize = 40;
+        int pixelDataSize = frame.Bgra32Pixels.Length;
+
+        using FileStream stream = File.Create(path);
+        using BinaryWriter writer = new(stream);
+        writer.Write((ushort)0x4D42);
+        writer.Write(checked(fileHeaderSize + bitmapHeaderSize + pixelDataSize));
+        writer.Write((ushort)0);
+        writer.Write((ushort)0);
+        writer.Write(fileHeaderSize + bitmapHeaderSize);
+        writer.Write(bitmapHeaderSize);
+        writer.Write(frame.Width);
+        writer.Write(-frame.Height);
+        writer.Write((ushort)1);
+        writer.Write((ushort)32);
+        writer.Write(0);
+        writer.Write(pixelDataSize);
+        writer.Write(0);
+        writer.Write(0);
+        writer.Write(0);
+        writer.Write(0);
+        writer.Write(frame.Bgra32Pixels.Span);
+    }
+
+    private static void WriteUsage()
+    {
+        Console.Error.WriteLine(
+            "Usage: IdleRunner.InputProbe "
+            + "<capture [output.bmp]|virtual-space|scan-space|mouse-left|mouse-right|"
+            + "mouse-jump-boost|mouse-safe-jump-boost|close-test-panels>");
     }
 
     private static async Task SendMousePulseAtAsync(nint window, int clientX, int clientY)
