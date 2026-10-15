@@ -23,6 +23,7 @@ public sealed class LegacyGameAutomationService
     private DateTime _nextSoulBonusRageUtc;
     private bool _wasAutoBuyEnabled;
     private bool _wasAutoAscendEnabled;
+    private bool _silverBoxClaimSent;
 
     public LegacyGameAutomationService(
         IGameAdapter gameAdapter,
@@ -114,13 +115,21 @@ public sealed class LegacyGameAutomationService
         bool silverBoxVisible = HasExactColor(
             frame, 650, 36, 650, 36, 0xCA, 0x97, 0x00)
             || (silverObservation is not null && silverObservation.Evaluate(frame).IsMatch);
-        if (settings.CollectSilverBoxesEnabled && silverBoxVisible)
+        if (!silverBoxVisible)
+        {
+            _silverBoxClaimSent = false;
+        }
+
+        if (settings.CollectSilverBoxesEnabled
+            && silverBoxVisible
+            && !_silverBoxClaimSent)
         {
             if (await ClickAsync(
                 SilverBoxCalibration.ClickX,
                 SilverBoxCalibration.ClickY,
                 cancellationToken).ConfigureAwait(false))
             {
+                _silverBoxClaimSent = true;
                 _log.Info("Silver Box collected.");
             }
 
