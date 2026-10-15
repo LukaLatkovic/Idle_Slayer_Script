@@ -104,6 +104,12 @@ public sealed class LegacyGameAutomationService
             return;
         }
 
+        if (BonusStageVisualDetector.IsEntranceVisible(frame)
+            || IsChestHuntEntrance(frame))
+        {
+            return;
+        }
+
         VisualObservationDefinition? silverObservation = _silverBoxObservationProvider();
         bool silverBoxVisible = HasColor(
             frame, 642, 28, 658, 44, 0xCA, 0x97, 0x00, 24)
@@ -121,13 +127,13 @@ public sealed class LegacyGameAutomationService
             return;
         }
 
-        if (HasColor(frame, 375, 265, 395, 295, 0x14, 0x0C, 0x1C, 20))
+        if (HasColor(frame, 382, 277, 388, 283, 0x14, 0x0C, 0x1C, 12))
         {
             await RunExclusiveAsync(RageWhenHordeAsync, cancellationToken).ConfigureAwait(false);
             return;
         }
 
-        if (HasColor(frame, 1115, 595, 1145, 625, 0xCB, 0xCB, 0x4C, 24))
+        if (HasColor(frame, 1127, 607, 1133, 613, 0xCB, 0xCB, 0x4C, 12))
         {
             await RunExclusiveAsync(ClaimQuestsAsync, cancellationToken).ConfigureAwait(false);
             return;
@@ -139,7 +145,7 @@ public sealed class LegacyGameAutomationService
             await PressRageAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        if (HasColor(frame, 88, 102, 110, 124, 0xFF, 0xFF, 0x7A, 24))
+        if (HasColor(frame, 96, 110, 102, 116, 0xFF, 0xFF, 0x7A, 12))
         {
             await RunExclusiveAsync(CollectMinionsAsync, cancellationToken).ConfigureAwait(false);
             return;
@@ -992,6 +998,10 @@ public sealed class LegacyGameAutomationService
     private static bool IsAscendingHeightsEntrance(GameFrame frame) =>
         HasColor(frame, 650, 195, 690, 235, 0xC2, 0xF4, 0xF9, 26)
         && HasColor(frame, 620, 225, 660, 650, 0xFF, 0xCC, 0x66, 26);
+
+    private static bool IsChestHuntEntrance(GameFrame frame) =>
+        HasColor(frame, 170, 280, 205, 310, 0xFF, 0xBB, 0x31, 28)
+        && HasColor(frame, 170, 290, 205, 320, 0xF6, 0x8F, 0x37, 28);
 
     private static bool HasColor(
         GameFrame frame,

@@ -293,6 +293,11 @@ public sealed class BonusStageAutomationService
                     _ => false
                 };
 
+                if (_isPaused())
+                {
+                    return false;
+                }
+
                 if (!completed && attempt == 1)
                 {
                     _log.Info($"BonusStage3{(spiritBoost ? "SB" : string.Empty)} Section {section} retry.");

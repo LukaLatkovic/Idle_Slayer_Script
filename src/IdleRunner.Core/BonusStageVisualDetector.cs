@@ -11,7 +11,7 @@ public static class BonusStageVisualDetector
     }
 
     public static bool IsStage3(GameFrame frame) =>
-        ContainsColor(frame, 145, 488, 215, 510, 0x16, 0x17, 0x1F, 18);
+        ContainsColor(frame, 160, 498, 200, 498, 0x16, 0x17, 0x1F, 8);
 
     public static bool HasSpiritBoost(GameFrame frame) =>
         ContainsColor(frame, 440, 78, 468, 104, 0xE1, 0xE0, 0xE2, 20);
