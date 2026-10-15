@@ -271,7 +271,7 @@
             </StackPanel>
 
             <StackPanel Grid.Column="1" HorizontalAlignment="Right">
-                <TextBlock Text="MIGRATION BUILD"
+                <TextBlock Text="AUTOMATION BUILD"
                            Style="{StaticResource SectionLabelStyle}"
                            HorizontalAlignment="Right" />
                 <TextBlock Text="C# / Windows"
@@ -387,7 +387,7 @@
                             Style="{StaticResource SecondaryButtonStyle}"
                             Click="OnCalibrateGameplayClick" />
                     <TextBlock Margin="0,8,0,0"
-                               Text="Use the normal gameplay view with menus closed. Calibration always pauses automation."
+                               Text="Use the normal gameplay view with menus closed. Calibration does not change the Start/Stop state."
                                Style="{StaticResource SettingDescriptionStyle}" />
                 </StackPanel>
             </StackPanel>
@@ -405,13 +405,13 @@
 
                 <TextBlock Text="SAFETY GATES" Style="{StaticResource SectionLabelStyle}" />
                 <StackPanel Grid.Row="1" Margin="0,18,0,25">
-                    <TextBlock Text="✓ Starts paused" Margin="0,0,0,9" />
+                    <TextBlock Text="✓ Explicit Start / Stop state" Margin="0,0,0,9" />
                     <TextBlock Text="✓ Idle Slayer must be foreground" Margin="0,0,0,9" />
                     <TextBlock Text="✓ Client area must be 1280 × 720" Margin="0,0,0,9" />
                     <TextBlock Text="✓ Single application instance" Margin="0,0,0,9" />
                     <TextBlock Text="✓ Mouse jump + boost, 35 ms pulse" Margin="0,0,0,9" />
-                    <TextBlock Text="✓ Cursor parked safely while running" Margin="0,0,0,9" />
-                    <TextBlock Text="Home toggles · Shift+Esc exits" />
+                    <TextBlock Text="✓ Cursor restored after every command" Margin="0,0,0,9" />
+                    <TextBlock Text="Home starts/stops · Shift+Esc exits" />
                 </StackPanel>
 
                 <Border Grid.Row="2" Background="{StaticResource DividerBrush}" />
@@ -465,7 +465,7 @@
                         <StackPanel Margin="0,0,42,0">
                             <TextBlock Text="AUTOMATION SCHEDULE" Style="{StaticResource SectionLabelStyle}" />
                             <TextBlock Margin="0,7,0,28"
-                                       Text="Values are saved immediately. Scheduled modules will use them as they are migrated."
+                                       Text="Values are saved immediately and used by the active scheduled modules."
                                        Style="{StaticResource SettingDescriptionStyle}" />
 
                             <Grid Margin="0,0,0,30">
@@ -489,7 +489,7 @@
                                                    Text="minutes"
                                                    Foreground="{StaticResource MutedTextBrush}" />
                                     </StackPanel>
-                                    <TextBlock Text="MODULE PENDING" Style="{StaticResource PendingLabelStyle}" />
+                                    <TextBlock Text="MODULE READY" Style="{StaticResource PendingLabelStyle}" />
                                 </StackPanel>
                             </Grid>
 
@@ -514,7 +514,7 @@
                                                    Text="minutes"
                                                    Foreground="{StaticResource MutedTextBrush}" />
                                     </StackPanel>
-                                    <TextBlock Text="MODULE PENDING" Style="{StaticResource PendingLabelStyle}" />
+                                    <TextBlock Text="MODULE READY" Style="{StaticResource PendingLabelStyle}" />
                                 </StackPanel>
                             </Grid>
                         </StackPanel>
@@ -524,7 +524,7 @@
                         <StackPanel Grid.Column="2" Margin="42,0,0,0">
                             <TextBlock Text="GAMEPLAY RULES" Style="{StaticResource SectionLabelStyle}" />
                             <TextBlock Margin="0,7,0,28"
-                                       Text="Legacy behavior is preserved as configuration while its visual modules are rebuilt."
+                                       Text="Legacy gameplay behavior is connected to foreground-only visual automation."
                                        Style="{StaticResource SettingDescriptionStyle}" />
 
                             <Grid Margin="0,0,0,30">
@@ -537,7 +537,7 @@
                                           Style="{StaticResource SettingsCheckBoxStyle}" />
                                 <StackPanel Grid.Column="1" Margin="13,0,0,0">
                                     <TextBlock Text="Collect Silver Boxes" Style="{StaticResource SettingTitleStyle}" />
-                                    <TextBlock Text="Claim the top-screen Silver Box only after its calibrated icon is recognized."
+                                    <TextBlock Text="Claim the top-screen Silver Box using the original marker; calibration is optional."
                                                Style="{StaticResource SettingDescriptionStyle}" />
                                     <TextBlock Text="{Binding SilverBoxCalibrationStatus}"
                                                Style="{StaticResource SettingDescriptionStyle}" />
@@ -571,7 +571,7 @@
                                                    Text="next index (1-9)"
                                                    Foreground="{StaticResource MutedTextBrush}" />
                                     </StackPanel>
-                                    <TextBlock Text="MODULE PENDING" Style="{StaticResource PendingLabelStyle}" />
+                                    <TextBlock Text="MODULE READY" Style="{StaticResource PendingLabelStyle}" />
                                 </StackPanel>
                             </Grid>
 
@@ -587,7 +587,7 @@
                                     <TextBlock Text="Limit rage to Soul Bonus" Style="{StaticResource SettingTitleStyle}" />
                                     <TextBlock Text="Do not use rage on a Mega Horde unless Soul Bonus is active."
                                                Style="{StaticResource SettingDescriptionStyle}" />
-                                    <TextBlock Text="MODULE PENDING" Style="{StaticResource PendingLabelStyle}" />
+                                    <TextBlock Text="MODULE READY" Style="{StaticResource PendingLabelStyle}" />
                                 </StackPanel>
                             </Grid>
                         </StackPanel>
@@ -690,7 +690,7 @@
                                 <TextBlock Text="Craft Souls Compass" Style="{StaticResource SettingTitleStyle}" />
                                 <TextBlock Text="Craft a Souls Compass when a Horde and Soul Bonus overlap."
                                            Style="{StaticResource SettingDescriptionStyle}" />
-                                <TextBlock Text="MODULE PENDING" Style="{StaticResource PendingLabelStyle}" />
+                                <TextBlock Text="MODULE READY" Style="{StaticResource PendingLabelStyle}" />
                             </StackPanel>
                         </Grid>
 
@@ -703,7 +703,7 @@
                                 <TextBlock Text="Craft Rage Pill" Style="{StaticResource SettingTitleStyle}" />
                                 <TextBlock Text="Craft a Rage Pill when a Horde and Soul Bonus overlap."
                                            Style="{StaticResource SettingDescriptionStyle}" />
-                                <TextBlock Text="MODULE PENDING" Style="{StaticResource PendingLabelStyle}" />
+                                <TextBlock Text="MODULE READY" Style="{StaticResource PendingLabelStyle}" />
                             </StackPanel>
                         </Grid>
 
@@ -716,7 +716,7 @@
                                 <TextBlock Text="Craft Dimensional Staff once" Style="{StaticResource SettingTitleStyle}" />
                                 <TextBlock Text="Craft the item during the next eligible Mega Horde, then disable this option."
                                            Style="{StaticResource SettingDescriptionStyle}" />
-                                <TextBlock Text="MODULE PENDING" Style="{StaticResource PendingLabelStyle}" />
+                                <TextBlock Text="MODULE READY" Style="{StaticResource PendingLabelStyle}" />
                             </StackPanel>
                         </Grid>
 
@@ -729,7 +729,7 @@
                                 <TextBlock Text="Craft Bidimensional Staff once" Style="{StaticResource SettingTitleStyle}" />
                                 <TextBlock Text="Craft the item during the next eligible Mega Horde, then disable this option."
                                            Style="{StaticResource SettingDescriptionStyle}" />
-                                <TextBlock Text="MODULE PENDING" Style="{StaticResource PendingLabelStyle}" />
+                                <TextBlock Text="MODULE READY" Style="{StaticResource PendingLabelStyle}" />
                             </StackPanel>
                         </Grid>
                     </StackPanel>

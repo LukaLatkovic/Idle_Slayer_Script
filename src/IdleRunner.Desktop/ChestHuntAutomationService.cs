@@ -21,8 +21,8 @@ public sealed class ChestHuntAutomationService
     private readonly IAutomationLog _log;
     private readonly Func<AutomationSettings> _settingsProvider;
     private readonly Func<bool> _isPaused;
-    private readonly Action _pauseAutomation;
     private readonly Action _clickExecuted;
+    private readonly AutomationActivityCoordinator _coordinator;
     private bool _reportedUnsafeResume;
     private bool _waitingForGridExit;
 
@@ -34,8 +34,8 @@ public sealed class ChestHuntAutomationService
         IAutomationLog log,
         Func<AutomationSettings> settingsProvider,
         Func<bool> isPaused,
-        Action pauseAutomation,
-        Action clickExecuted)
+        Action clickExecuted,
+        AutomationActivityCoordinator coordinator)
     {
         _gameAdapter = gameAdapter ?? throw new ArgumentNullException(nameof(gameAdapter));
         _pointerAdapter = pointerAdapter ?? throw new ArgumentNullException(nameof(pointerAdapter));
@@ -44,8 +44,8 @@ public sealed class ChestHuntAutomationService
         _log = log ?? throw new ArgumentNullException(nameof(log));
         _settingsProvider = settingsProvider ?? throw new ArgumentNullException(nameof(settingsProvider));
         _isPaused = isPaused ?? throw new ArgumentNullException(nameof(isPaused));
-        _pauseAutomation = pauseAutomation ?? throw new ArgumentNullException(nameof(pauseAutomation));
         _clickExecuted = clickExecuted ?? throw new ArgumentNullException(nameof(clickExecuted));
+        _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
     }
 
     public async Task RunAsync(CancellationToken cancellationToken)
@@ -63,7 +63,7 @@ public sealed class ChestHuntAutomationService
             catch (Exception exception)
             {
                 _log.Error("The Chest Hunt automation cycle failed.", exception);
-                PauseForSafety("Chest Hunt automation was paused after an unexpected error.");
+                ReportIssue("Chest Hunt execution ended after an unexpected error; the main automation remains running.");
                 _waitingForGridExit = true;
             }
 
@@ -83,6 +83,11 @@ public sealed class ChestHuntAutomationService
         if (_isPaused())
         {
             _waitingForGridExit = false;
+            return;
+        }
+
+        if (_coordinator.IsExclusiveActionActive)
+        {
             return;
         }
 
@@ -153,11 +158,23 @@ public sealed class ChestHuntAutomationService
                 + $"column {observation.Saver.Position.Column}.");
         }
 
-        bool completed = await PlayAsync(
-            observation.Saver.Position,
-            settings,
-            cancellationToken).ConfigureAwait(false);
-        _waitingForGridExit = completed;
+        if (!_coordinator.TryEnter())
+        {
+            return;
+        }
+
+        try
+        {
+            bool completed = await PlayAsync(
+                observation.Saver.Position,
+                settings,
+                cancellationToken).ConfigureAwait(false);
+            _waitingForGridExit = completed;
+        }
+        finally
+        {
+            _coordinator.Exit();
+        }
     }
 
     private async Task<bool> PlayAsync(
@@ -184,7 +201,7 @@ public sealed class ChestHuntAutomationService
             || !readyObservation.IsActive
             || readyObservation.Saver.Position != saverPosition)
         {
-            PauseForSafety("Chest Hunt changed before execution started; automation was paused for safety.");
+            ReportIssue("Chest Hunt changed before execution started; this hunt was skipped.");
             return true;
         }
 
@@ -233,10 +250,10 @@ public sealed class ChestHuntAutomationService
 
             if (!targetIsReady)
             {
-                PauseForSafety(
+                ReportIssue(
                     $"Chest Hunt target at row {nextPosition.Value.Row}, "
                     + $"column {nextPosition.Value.Column} was not in the expected state; "
-                    + "automation was paused before clicking.");
+                    + "this hunt was skipped before clicking.");
                 return true;
             }
 
@@ -251,7 +268,7 @@ public sealed class ChestHuntAutomationService
                         nextPosition.Value.CenterY,
                         cancellationToken).ConfigureAwait(false))
                 {
-                    PauseForSafety("Chest Hunt click was rejected because the game is not ready for input.");
+                    ReportIssue("Chest Hunt click was rejected because the game is not ready for input.");
                     return true;
                 }
 
@@ -266,7 +283,7 @@ public sealed class ChestHuntAutomationService
                 frame = await _frameSource.CaptureAsync(cancellationToken).ConfigureAwait(false);
                 if (frame is null)
                 {
-                    PauseForSafety("Chest Hunt result could not be captured; automation was paused for safety.");
+                    ReportIssue("Chest Hunt result could not be captured; this hunt was skipped.");
                     return true;
                 }
 
@@ -310,7 +327,7 @@ public sealed class ChestHuntAutomationService
                 frame = await _frameSource.CaptureAsync(cancellationToken).ConfigureAwait(false);
                 if (frame is null)
                 {
-                    PauseForSafety("The Mimic result could not be verified; automation was paused for safety.");
+                    ReportIssue("The Mimic result could not be verified; this hunt was skipped.");
                     return true;
                 }
 
@@ -369,7 +386,7 @@ public sealed class ChestHuntAutomationService
                     cancellationToken).ConfigureAwait(false);
                 if (!clicked)
                 {
-                    PauseForSafety("The Chest Hunt result screen could not be closed safely.");
+                    ReportIssue("The Chest Hunt result screen could not be closed.");
                     return true;
                 }
 
@@ -389,7 +406,7 @@ public sealed class ChestHuntAutomationService
                     cancellationToken).ConfigureAwait(false);
                 if (!clicked)
                 {
-                    PauseForSafety("The Perfect Chest reward could not be opened safely.");
+                    ReportIssue("The Perfect Chest reward could not be opened.");
                     return true;
                 }
 
@@ -401,7 +418,7 @@ public sealed class ChestHuntAutomationService
             await Task.Delay(OutcomePollInterval, cancellationToken).ConfigureAwait(false);
         }
 
-        PauseForSafety("The Chest Hunt end screen was not recognized; automation was paused for safety.");
+        ReportIssue("The Chest Hunt end screen was not recognized; the main automation remains running.");
         return true;
     }
 
@@ -424,31 +441,34 @@ public sealed class ChestHuntAutomationService
         TimeSpan delay,
         CancellationToken cancellationToken)
     {
-        DateTimeOffset deadline = DateTimeOffset.UtcNow + delay;
-        while (DateTimeOffset.UtcNow < deadline)
+        TimeSpan remaining = delay;
+        while (remaining > TimeSpan.Zero)
         {
             if (_isPaused())
             {
                 return false;
             }
 
-            TimeSpan remaining = deadline - DateTimeOffset.UtcNow;
-            if (remaining <= TimeSpan.Zero)
+            AutomationSettings settings = _settingsProvider().Normalize();
+            GameSnapshot snapshot = await _gameAdapter
+                .GetSnapshotAsync(cancellationToken)
+                .ConfigureAwait(false);
+            if (!snapshot.CanReceiveInput(settings))
             {
-                break;
+                await Task.Delay(200, cancellationToken).ConfigureAwait(false);
+                continue;
             }
 
-            await Task.Delay(
-                remaining < OutcomePollInterval ? remaining : OutcomePollInterval,
-                cancellationToken).ConfigureAwait(false);
+            TimeSpan slice = remaining < OutcomePollInterval ? remaining : OutcomePollInterval;
+            await Task.Delay(slice, cancellationToken).ConfigureAwait(false);
+            remaining -= slice;
         }
 
         return !_isPaused();
     }
 
-    private void PauseForSafety(string message)
+    private void ReportIssue(string message)
     {
         _log.Info(message);
-        _pauseAutomation();
     }
 }

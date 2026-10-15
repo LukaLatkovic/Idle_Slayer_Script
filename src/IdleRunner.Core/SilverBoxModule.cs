@@ -53,13 +53,23 @@ public sealed class SilverBoxModule : IObservedAutomationModule
             return false;
         }
 
-        VisualObservationDefinition? observation = _observationProvider();
-        if (observation is null)
+        GameFrame? frame = await _frameSource.CaptureAsync(cancellationToken).ConfigureAwait(false);
+        if (frame is null)
         {
             return false;
         }
 
-        GameFrame? frame = await _frameSource.CaptureAsync(cancellationToken).ConfigureAwait(false);
-        return frame is not null && observation.Evaluate(frame).IsMatch;
+        bool legacyMarker = BonusStageVisualDetector.ContainsColor(
+            frame,
+            642,
+            28,
+            658,
+            44,
+            0xCA,
+            0x97,
+            0x00,
+            tolerance: 24);
+        VisualObservationDefinition? observation = _observationProvider();
+        return legacyMarker || (observation is not null && observation.Evaluate(frame).IsMatch);
     }
 }

@@ -12,4 +12,12 @@ public interface IGameControlAdapter
         int endX,
         int endY,
         CancellationToken cancellationToken);
+
+    Task<bool> ScrollClientPointAsync(
+        int clientX,
+        int clientY,
+        int wheelNotches,
+        CancellationToken cancellationToken);
+
+    Task<bool> PressRageAsync(CancellationToken cancellationToken);
 }

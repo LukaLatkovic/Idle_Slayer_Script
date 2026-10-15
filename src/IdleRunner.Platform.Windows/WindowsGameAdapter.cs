@@ -14,11 +14,17 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
     private const uint MouseEventLeftUp = 0x0004;
     private const uint MouseEventRightDown = 0x0008;
     private const uint MouseEventRightUp = 0x0010;
+    private const uint MouseEventWheel = 0x0800;
+    private const uint KeyEventKeyUp = 0x0002;
+    private const byte VirtualKeyR = 0x52;
+    private const int WheelDelta = 120;
     private const int ShowWindowRestore = 9;
 
     private nint _gameWindow;
     private readonly object _cursorLock = new();
+    private readonly SemaphoreSlim _inputLock = new(1, 1);
     private NativeMethods.Point _originalCursorPosition;
+    private NativeMethods.Point _programmedCursorPosition;
     private bool _cursorIsParked;
 
     public Task<GameSnapshot> GetSnapshotAsync(CancellationToken cancellationToken)
@@ -89,14 +95,23 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
             return false;
         }
 
-        return action switch
+        await _inputLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            AutomationAction.JumpAndBoost => await SendJumpAndBoostAsync(window, cancellationToken)
-                .ConfigureAwait(false),
-            AutomationAction.CollectSilverBox => await ClickSilverBoxAsync(window, cancellationToken)
-                .ConfigureAwait(false),
-            _ => throw new NotSupportedException($"The action '{action}' is not supported by the Windows adapter.")
-        };
+            return action switch
+            {
+                AutomationAction.JumpAndBoost => await SendJumpAndBoostAsync(window, cancellationToken)
+                    .ConfigureAwait(false),
+                AutomationAction.CollectSilverBox => await ClickSilverBoxAsync(window, cancellationToken)
+                    .ConfigureAwait(false),
+                _ => throw new NotSupportedException($"The action '{action}' is not supported by the Windows adapter.")
+            };
+        }
+        finally
+        {
+            RestoreCursor();
+            _inputLock.Release();
+        }
     }
 
     private async Task<bool> SendJumpAndBoostAsync(nint window, CancellationToken cancellationToken)
@@ -128,6 +143,8 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
             SendInputEvents(buttonUpInputs);
         }
 
+        await Task.Delay(20, cancellationToken).ConfigureAwait(false);
+
         return true;
     }
 
@@ -140,7 +157,7 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
             cancellationToken).ConfigureAwait(false);
     }
 
-    public Task<bool> ClickClientPointAsync(
+    public async Task<bool> ClickClientPointAsync(
         int clientX,
         int clientY,
         CancellationToken cancellationToken)
@@ -153,10 +170,20 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
             || NativeMethods.GetForegroundWindow() != window)
         {
             RestoreCursor();
-            return Task.FromResult(false);
+            return false;
         }
 
-        return ClickClientPointAsync(window, clientX, clientY, cancellationToken);
+        await _inputLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return await ClickClientPointAsync(window, clientX, clientY, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            RestoreCursor();
+            _inputLock.Release();
+        }
     }
 
     public async Task<bool> HoldJumpAsync(
@@ -164,30 +191,35 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        nint window = _gameWindow;
-        if (!CanSendInput(window) || !TryParkCursor(window))
-        {
-            RestoreCursor();
-            return false;
-        }
-
-        NativeMethods.MouseEvent(MouseEventLeftDown, 0, 0, 0, nuint.Zero);
+        await _inputLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await Task.Delay(
-                Math.Max(InputPulseMilliseconds, durationMilliseconds),
-                cancellationToken).ConfigureAwait(false);
+            nint window = _gameWindow;
+            if (!CanSendInput(window) || !TryParkCursor(window))
+            {
+                return false;
+            }
+
+            NativeMethods.MouseEvent(MouseEventLeftDown, 0, 0, 0, nuint.Zero);
+            try
+            {
+                await Task.Delay(
+                    Math.Max(InputPulseMilliseconds, durationMilliseconds),
+                    cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                NativeMethods.MouseEvent(MouseEventLeftUp, 0, 0, 0, nuint.Zero);
+            }
+
+            await Task.Delay(20, cancellationToken).ConfigureAwait(false);
+            return true;
         }
         finally
         {
-            NativeMethods.MouseEvent(MouseEventLeftUp, 0, 0, 0, nuint.Zero);
-            if (NativeMethods.GetForegroundWindow() != window)
-            {
-                RestoreCursor();
-            }
+            RestoreCursor();
+            _inputLock.Release();
         }
-
-        return true;
     }
 
     public async Task<bool> DragClientPointAsync(
@@ -198,34 +230,105 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        nint window = _gameWindow;
-        if (!CanSendInput(window) || !TryMoveCursorToClientPoint(window, startX, startY))
-        {
-            RestoreCursor();
-            return false;
-        }
-
-        NativeMethods.MouseEvent(MouseEventLeftDown, 0, 0, 0, nuint.Zero);
+        await _inputLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await Task.Delay(50, cancellationToken).ConfigureAwait(false);
-            if (!TryMoveCursorToClientPoint(window, endX, endY))
+            nint window = _gameWindow;
+            if (!CanSendInput(window) || !TryMoveCursorToClientPoint(window, startX, startY))
             {
                 return false;
             }
 
-            await Task.Delay(100, cancellationToken).ConfigureAwait(false);
+            NativeMethods.MouseEvent(MouseEventLeftDown, 0, 0, 0, nuint.Zero);
+            try
+            {
+                await Task.Delay(50, cancellationToken).ConfigureAwait(false);
+                if (!TryMoveCursorToClientPoint(window, endX, endY))
+                {
+                    return false;
+                }
+
+                await Task.Delay(100, cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                NativeMethods.MouseEvent(MouseEventLeftUp, 0, 0, 0, nuint.Zero);
+            }
+
+            await Task.Delay(75, cancellationToken).ConfigureAwait(false);
+            return true;
         }
         finally
         {
-            NativeMethods.MouseEvent(MouseEventLeftUp, 0, 0, 0, nuint.Zero);
-            if (NativeMethods.GetForegroundWindow() != window)
-            {
-                RestoreCursor();
-            }
+            RestoreCursor();
+            _inputLock.Release();
         }
+    }
 
-        return true;
+    public async Task<bool> ScrollClientPointAsync(
+        int clientX,
+        int clientY,
+        int wheelNotches,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        await _inputLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            nint window = _gameWindow;
+            if (!CanSendInput(window) || !TryMoveCursorToClientPoint(window, clientX, clientY))
+            {
+                return false;
+            }
+
+            int direction = Math.Sign(wheelNotches);
+            for (int i = 0; i < Math.Abs(wheelNotches); i++)
+            {
+                NativeMethods.MouseEvent(
+                    MouseEventWheel,
+                    0,
+                    0,
+                    unchecked((uint)(direction * WheelDelta)),
+                    nuint.Zero);
+                await Task.Delay(10, cancellationToken).ConfigureAwait(false);
+            }
+
+            return true;
+        }
+        finally
+        {
+            RestoreCursor();
+            _inputLock.Release();
+        }
+    }
+
+    public async Task<bool> PressRageAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        await _inputLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (!CanSendInput(_gameWindow))
+            {
+                return false;
+            }
+
+            NativeMethods.KeybdEvent(VirtualKeyR, 0, 0, nuint.Zero);
+            try
+            {
+                await Task.Delay(InputPulseMilliseconds, cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                NativeMethods.KeybdEvent(VirtualKeyR, 0, KeyEventKeyUp, nuint.Zero);
+            }
+
+            return true;
+        }
+        finally
+        {
+            _inputLock.Release();
+        }
     }
 
     private static bool CanSendInput(nint window) =>
@@ -253,12 +356,9 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
         finally
         {
             NativeMethods.MouseEvent(MouseEventLeftUp, 0, 0, 0, nuint.Zero);
-
-            if (NativeMethods.GetForegroundWindow() != window)
-            {
-                RestoreCursor();
-            }
         }
+
+        await Task.Delay(100, cancellationToken).ConfigureAwait(false);
 
         return true;
     }
@@ -282,11 +382,6 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
 
         bool activated = NativeMethods.SetForegroundWindow(window)
             || NativeMethods.GetForegroundWindow() == window;
-
-        if (activated)
-        {
-            activated = TryParkCursor(window);
-        }
 
         return Task.FromResult(activated);
     }
@@ -358,6 +453,8 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
                 return false;
             }
 
+            _programmedCursorPosition = targetPosition;
+
             return true;
         }
     }
@@ -377,7 +474,13 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
             return;
         }
 
-        NativeMethods.SetCursorPos(_originalCursorPosition.X, _originalCursorPosition.Y);
+        if (!NativeMethods.GetCursorPos(out NativeMethods.Point currentPosition)
+            || (currentPosition.X == _programmedCursorPosition.X
+                && currentPosition.Y == _programmedCursorPosition.Y))
+        {
+            NativeMethods.SetCursorPos(_originalCursorPosition.X, _originalCursorPosition.Y);
+        }
+
         _cursorIsParked = false;
     }
 
@@ -437,6 +540,13 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
             uint deltaX,
             uint deltaY,
             uint data,
+            nuint extraInformation);
+
+        [LibraryImport("user32.dll", EntryPoint = "keybd_event")]
+        internal static partial void KeybdEvent(
+            byte virtualKey,
+            byte scanCode,
+            uint flags,
             nuint extraInformation);
 
         [StructLayout(LayoutKind.Sequential)]

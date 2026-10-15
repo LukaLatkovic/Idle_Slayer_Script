@@ -18,6 +18,7 @@ internal static class Program
             ("Named observation requires multiple visual anchors", NamedObservationRequiresMultipleAnchorsAsync),
             ("Gameplay HUD calibration recognizes its source frame", GameplayHudCalibrationRecognizesSourceAsync),
             ("Silver Box calibration rejects a missing icon", SilverBoxCalibrationRejectsMissingIconAsync),
+            ("Silver Box legacy marker works without calibration", SilverBoxLegacyMarkerWorksWithoutCalibrationAsync),
             ("Chest Hunt normal strategy opens the Life Saver after two chests", ChestHuntNormalStrategyAsync),
             ("Chest Hunt perfect strategy preserves its search limits", ChestHuntPerfectStrategyAsync),
             ("Chest Hunt special outcomes override the strategy", ChestHuntSpecialOutcomesAsync),
@@ -331,6 +332,19 @@ internal static class Program
             rejectedColorfulBackground,
             "Expected a colorful background without the icon's white and black detail to be rejected.");
         return Task.CompletedTask;
+    }
+
+    private static async Task SilverBoxLegacyMarkerWorksWithoutCalibrationAsync()
+    {
+        byte[] pixels = new byte[1_280 * 720 * 4];
+        SetBgraPixel(pixels, 1_280, 650, 36, 0xCA, 0x97, 0x00);
+        GameFrame frame = new(1_280, 720, pixels);
+        SilverBoxModule module = new(new FakeFrameSource(frame), () => null);
+        GameSnapshot snapshot = new(GameConnectionState.Ready, true, 1_280, 720);
+
+        bool canRun = await module.CanRunAsync(snapshot, new AutomationSettings(), CancellationToken.None);
+
+        AssertTrue(canRun, "Expected the original Silver Box marker to work without calibration.");
     }
 
     private static Task ChestHuntNormalStrategyAsync()

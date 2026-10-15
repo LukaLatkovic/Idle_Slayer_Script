@@ -8,18 +8,19 @@ The active rewrite is being developed on the `feature/csharp-rewrite` branch. Th
 - Locates and activates the Steam version of Idle Slayer.
 - Sends verified left/right mouse input pulses for jump and boost.
 - Requires the game client to be 1280x720 and in the foreground before sending input.
-- Parks the cursor safely inside the game while automation is active and restores its previous position when paused or closed.
-- Starts paused, persists settings, prevents duplicate instances, and keeps an activity log.
+- Restores the user's cursor after every command and does not pin it while automation is running.
+- Starts stopped, persists settings, prevents duplicate instances, and keeps an activity log.
 - Uses independently scheduled automation modules so additional gameplay features can be migrated incrementally.
 - Captures the game client and supports shape-based grayscale template matching instead of relying only on exact pixel colors.
-- Can calibrate the normal gameplay HUD and pause input when menus or dialogs hide both visual anchors.
-- Includes an opt-in, shape-calibrated Silver Box collector with missing-icon rejection.
+- Can calibrate the normal gameplay HUD and temporarily block normal pulses when menus or dialogs hide both visual anchors.
+- Collects Silver Boxes using the original marker without requiring calibration.
 - Automatically runs calibrated Chest Hunts, including click retries, partial-grid continuation, the configured Saver strategy, Mimic and 2x handling, and result-screen closing.
-- Preserves and migrates the original General, Minigames, and Crafting settings while modules are ported incrementally.
+- Runs upgrades/equipment, ascension, quests, minions, portals, rage/crafting, Bonus Stages, Ascending Heights, and boss fights.
 
 ## Keyboard shortcuts
 
-- `Home`: start or pause automation from any application.
+- `Home`: start or stop automation from any application.
+- `Ctrl+Shift+B`: run the upgrade/equipment purchase sequence immediately.
 - `Shift+Escape`: safely stop automation and exit.
 
 ## Build and test
@@ -32,7 +33,7 @@ dotnet run --project tests/IdleRunner.Core.Tests
 dotnet run --project src/IdleRunner.Desktop
 ```
 
-The C# version currently automates the basic jump-and-boost loop. The specialized AutoIt modules for bonus stages, menus, minions, portals, and other game systems still need to be ported.
+The C# version connects every automation path present in the original AutoIt event loop. Input is emitted only while Idle Slayer is foreground; switching away suspends input and switching back resumes it automatically.
 
 # Legacy AutoIt version
 

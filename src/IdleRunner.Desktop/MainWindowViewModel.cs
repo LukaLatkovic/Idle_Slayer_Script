@@ -11,7 +11,7 @@ namespace IdleRunner.Desktop;
 
 public sealed class MainWindowViewModel : INotifyPropertyChanged
 {
-    private static readonly Brush PausedBrush = CreateBrush("#7A818D");
+    private static readonly Brush StoppedBrush = CreateBrush("#7A818D");
     private static readonly Brush WaitingBrush = CreateBrush("#F0B85A");
     private static readonly Brush ReadyBrush = CreateBrush("#D6FF52");
     private readonly Dispatcher _dispatcher;
@@ -24,15 +24,18 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private readonly SilverBoxVisualService _silverBoxVisualService;
     private readonly ChestHuntVisualService _chestHuntVisualService;
     private readonly AutomationEngine _engine;
+    private readonly AutomationActivityCoordinator _automationCoordinator;
     private readonly ChestHuntAutomationService _chestHuntAutomationService;
     private readonly BonusStageAutomationService _bonusStageAutomationService;
+    private readonly LegacyGameAutomationService _legacyGameAutomationService;
     private readonly CancellationTokenSource _shutdown = new();
     private Task? _engineTask;
     private Task? _chestHuntTask;
     private Task? _bonusStageTask;
-    private string _statusTitle = "Paused";
+    private Task? _legacyGameTask;
+    private string _statusTitle = "Stopped";
     private string _statusDetail = "Waiting for the first Idle Slayer window check.";
-    private Brush _statusBrush = PausedBrush;
+    private Brush _statusBrush = StoppedBrush;
     private bool _isRunning;
     private bool _isPrimaryActionEnabled = true;
     private int _commandCount;
@@ -72,13 +75,14 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             () => _settings,
             modules:
             [
-                new SilverBoxModule(_frameSource, () => _silverBoxVisualService.Observation),
                 new JumpAndBoostModule()
             ],
             gate: _gameplayVisualGate);
         _engine.SnapshotChanged += OnSnapshotChanged;
         _engine.PauseChanged += OnPauseChanged;
         _engine.ActionExecuted += OnActionExecuted;
+        _automationCoordinator = new AutomationActivityCoordinator(
+            _gameplayVisualGate.SetMinigameActive);
         _chestHuntAutomationService = new ChestHuntAutomationService(
             _gameAdapter,
             windowsGameAdapter,
@@ -87,8 +91,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             _log,
             () => _settings,
             () => _engine.IsPaused,
-            () => _engine.SetPaused(true),
-            OnChestHuntClickExecuted);
+            OnChestHuntClickExecuted,
+            _automationCoordinator);
         _bonusStageAutomationService = new BonusStageAutomationService(
             _gameAdapter,
             windowsGameAdapter,
@@ -97,9 +101,20 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             _log,
             () => _settings,
             () => _engine.IsPaused,
-            () => _engine.SetPaused(true),
             OnMinigameInputExecuted,
-            _gameplayVisualGate.SetMinigameActive);
+            _automationCoordinator);
+        _legacyGameAutomationService = new LegacyGameAutomationService(
+            _gameAdapter,
+            windowsGameAdapter,
+            windowsGameAdapter,
+            _frameSource,
+            _log,
+            () => _settings,
+            () => _silverBoxVisualService.Observation,
+            () => _engine.IsPaused,
+            _automationCoordinator,
+            OnMinigameInputExecuted,
+            OnLegacySettingsChanged);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -139,7 +154,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
     }
 
-    public string PrimaryActionText => IsRunning ? "Pause automation" : "Start automation";
+    public string PrimaryActionText => IsRunning ? "Stop automation" : "Start automation";
 
     public bool IsPrimaryActionEnabled
     {
@@ -158,8 +173,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         : "Not calibrated - visual input safety is inactive.";
 
     public string SilverBoxCalibrationStatus => _silverBoxVisualService.HasCalibration
-        ? "Icon calibrated - collector is ready."
-        : "Icon not calibrated - collector will not click.";
+        ? "Icon calibrated - shape and legacy marker detection are active."
+        : "Ready - the original top-window marker is active without calibration.";
 
     public string ChestHuntCalibrationStatus => _chestHuntVisualService.HasCalibration
         ? "Ready - Chest Hunts will run automatically."
@@ -341,6 +356,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _engineTask ??= _engine.RunAsync(_shutdown.Token);
         _chestHuntTask ??= _chestHuntAutomationService.RunAsync(_shutdown.Token);
         _bonusStageTask ??= _bonusStageAutomationService.RunAsync(_shutdown.Token);
+        _legacyGameTask ??= _legacyGameAutomationService.RunAsync(_shutdown.Token);
     }
 
     public void ReportInfo(string message)
@@ -395,6 +411,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
     }
 
+    public Task RunAutoUpgradeNowAsync()
+    {
+        return _legacyGameAutomationService.RunAutoUpgradeNowAsync(_shutdown.Token);
+    }
+
     public async Task CalibrateGameplayAsync()
     {
         if (!IsCalibrationEnabled)
@@ -403,7 +424,13 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
 
         IsCalibrationEnabled = false;
-        _engine.SetPaused(true);
+        bool entered = _automationCoordinator.TryEnter();
+        if (!entered)
+        {
+            _log.Info("Calibration is unavailable while another automation sequence is active.");
+            IsCalibrationEnabled = true;
+            return;
+        }
 
         try
         {
@@ -419,7 +446,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             await _gameplayVisualGate.CalibrateAsync(_shutdown.Token);
             OnPropertyChanged(nameof(GameplayCalibrationStatus));
             _log.Info("Gameplay HUD calibrated. Visual input safety is now active.");
-            _log.Info("Automation remains paused; press Start automation when ready.");
+            _log.Info("Gameplay calibration completed; automation state was not changed.");
         }
         catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
         {
@@ -431,6 +458,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         finally
         {
             await _gameAdapter.ReleaseInputAsync(CancellationToken.None);
+            _automationCoordinator.Exit();
             IsCalibrationEnabled = true;
         }
     }
@@ -443,7 +471,13 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
 
         IsCalibrationEnabled = false;
-        _engine.SetPaused(true);
+        bool entered = _automationCoordinator.TryEnter();
+        if (!entered)
+        {
+            _log.Info("Calibration is unavailable while another automation sequence is active.");
+            IsCalibrationEnabled = true;
+            return;
+        }
 
         try
         {
@@ -459,7 +493,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             await _silverBoxVisualService.CalibrateAsync(_shutdown.Token);
             OnPropertyChanged(nameof(SilverBoxCalibrationStatus));
             _log.Info("Silver Box icon calibrated. The collector is ready.");
-            _log.Info("Automation remains paused; press Start automation when ready.");
+            _log.Info("Silver Box calibration completed; automation state was not changed.");
         }
         catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
         {
@@ -471,6 +505,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         finally
         {
             await _gameAdapter.ReleaseInputAsync(CancellationToken.None);
+            _automationCoordinator.Exit();
             IsCalibrationEnabled = true;
         }
     }
@@ -483,7 +518,13 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
 
         IsCalibrationEnabled = false;
-        _engine.SetPaused(true);
+        bool entered = _automationCoordinator.TryEnter();
+        if (!entered)
+        {
+            _log.Info("Calibration is unavailable while another automation sequence is active.");
+            IsCalibrationEnabled = true;
+            return;
+        }
 
         try
         {
@@ -514,6 +555,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         finally
         {
             await _gameAdapter.ReleaseInputAsync(CancellationToken.None);
+            _automationCoordinator.Exit();
             IsCalibrationEnabled = true;
         }
     }
@@ -538,6 +580,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         if (_bonusStageTask is not null)
         {
             await _bonusStageTask.ConfigureAwait(true);
+        }
+
+        if (_legacyGameTask is not null)
+        {
+            await _legacyGameTask.ConfigureAwait(true);
         }
 
         _engine.SnapshotChanged -= OnSnapshotChanged;
@@ -624,6 +671,17 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         });
     }
 
+    private void OnLegacySettingsChanged()
+    {
+        PersistSettings();
+        RunOnUiThread(() =>
+        {
+            OnPropertyChanged(nameof(PortalCyclePosition));
+            OnPropertyChanged(nameof(CraftDimensionalStaff));
+            OnPropertyChanged(nameof(CraftBidimensionalStaff));
+        });
+    }
+
     private void OnLogEntryWritten(object? sender, string entry)
     {
         RunOnUiThread(() =>
@@ -642,9 +700,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     {
         if (_lastSnapshot is null)
         {
-            StatusTitle = IsRunning ? "Starting" : "Paused";
+            StatusTitle = IsRunning ? "Starting" : "Stopped";
             StatusDetail = "Waiting for the first Idle Slayer window check.";
-            StatusBrush = IsRunning ? WaitingBrush : PausedBrush;
+            StatusBrush = IsRunning ? WaitingBrush : StoppedBrush;
             return;
         }
 
@@ -652,11 +710,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
         if (!IsRunning)
         {
-            StatusTitle = "Paused";
+            StatusTitle = "Stopped";
             StatusDetail = canReceiveInput
                 ? "Idle Slayer is ready. Start automation when you are ready."
                 : _lastSnapshot.Describe(_settings);
-            StatusBrush = PausedBrush;
+            StatusBrush = StoppedBrush;
             return;
         }
 

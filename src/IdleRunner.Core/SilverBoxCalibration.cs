@@ -4,8 +4,8 @@ public sealed class SilverBoxCalibration
 {
     public const int RequiredWidth = 1_280;
     public const int RequiredHeight = 720;
-    public const int ClickX = 640;
-    public const int ClickY = 17;
+    public const int ClickX = 644;
+    public const int ClickY = 49;
 
     private static readonly FrameRectangle TemplateRegion = new(631, 7, 20, 20);
     private static readonly FrameRectangle SearchRegion = new(600, 0, 80, 50);

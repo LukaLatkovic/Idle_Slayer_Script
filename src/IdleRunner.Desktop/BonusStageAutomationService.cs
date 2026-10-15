@@ -17,9 +17,8 @@ public sealed class BonusStageAutomationService
     private readonly IAutomationLog _log;
     private readonly Func<AutomationSettings> _settingsProvider;
     private readonly Func<bool> _isPaused;
-    private readonly Action _pauseAutomation;
     private readonly Action _inputExecuted;
-    private readonly Action<bool> _setMinigameActive;
+    private readonly AutomationActivityCoordinator _coordinator;
     private bool _waitingForExit;
 
     public BonusStageAutomationService(
@@ -30,9 +29,8 @@ public sealed class BonusStageAutomationService
         IAutomationLog log,
         Func<AutomationSettings> settingsProvider,
         Func<bool> isPaused,
-        Action pauseAutomation,
         Action inputExecuted,
-        Action<bool> setMinigameActive)
+        AutomationActivityCoordinator coordinator)
     {
         _gameAdapter = gameAdapter ?? throw new ArgumentNullException(nameof(gameAdapter));
         _pointerAdapter = pointerAdapter ?? throw new ArgumentNullException(nameof(pointerAdapter));
@@ -41,9 +39,8 @@ public sealed class BonusStageAutomationService
         _log = log ?? throw new ArgumentNullException(nameof(log));
         _settingsProvider = settingsProvider ?? throw new ArgumentNullException(nameof(settingsProvider));
         _isPaused = isPaused ?? throw new ArgumentNullException(nameof(isPaused));
-        _pauseAutomation = pauseAutomation ?? throw new ArgumentNullException(nameof(pauseAutomation));
         _inputExecuted = inputExecuted ?? throw new ArgumentNullException(nameof(inputExecuted));
-        _setMinigameActive = setMinigameActive ?? throw new ArgumentNullException(nameof(setMinigameActive));
+        _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
     }
 
     public async Task RunAsync(CancellationToken cancellationToken)
@@ -61,7 +58,7 @@ public sealed class BonusStageAutomationService
             catch (Exception exception)
             {
                 _log.Error("The Bonus Stage automation cycle failed.", exception);
-                PauseForSafety("Bonus Stage automation was paused after an unexpected error.");
+                _log.Info("Bonus Stage execution ended after an unexpected error; the main automation remains running.");
                 _waitingForExit = true;
             }
 
@@ -81,6 +78,11 @@ public sealed class BonusStageAutomationService
         if (_isPaused())
         {
             _waitingForExit = false;
+            return;
+        }
+
+        if (_coordinator.IsExclusiveActionActive)
+        {
             return;
         }
 
@@ -104,15 +106,19 @@ public sealed class BonusStageAutomationService
             return;
         }
 
+        if (!_coordinator.TryEnter())
+        {
+            return;
+        }
+
         _waitingForExit = true;
-        _setMinigameActive(true);
         try
         {
             await PlayAsync(frame!, settings.SkipBonusStage, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
-            _setMinigameActive(false);
+            _coordinator.Exit();
         }
     }
 
@@ -131,8 +137,7 @@ public sealed class BonusStageAutomationService
         bool stage3 = BonusStageVisualDetector.IsStage3(stageFrame ?? entranceFrame);
         if (!await ClearSliderAsync(cancellationToken).ConfigureAwait(false))
         {
-            PauseForSafety("Bonus Stage automation paused because the opening slider did not clear.");
-            return;
+            _log.Info("The Bonus Stage opening slider was not detected; continuing with the route.");
         }
 
         int stageNumber = stage3 ? 3 : 2;
@@ -141,7 +146,7 @@ public sealed class BonusStageAutomationService
             _log.Info($"Skip Bonus Stage is enabled. Waiting for Bonus Stage {stageNumber} to end.");
             if (!await WaitForFailureAndCloseAsync(stageNumber, SkipTimeout, cancellationToken).ConfigureAwait(false))
             {
-                PauseForSafety("Bonus Stage automation paused because the skip result was not detected.");
+                _log.Info("The skipped Bonus Stage result was not detected; the main automation remains running.");
             }
 
             return;
@@ -557,13 +562,13 @@ public sealed class BonusStageAutomationService
         BonusStageJumpCommand command,
         CancellationToken cancellationToken)
     {
-        if (_isPaused()) return false;
+        if (!await WaitUntilReadyAsync(cancellationToken).ConfigureAwait(false)) return false;
         bool sent = await _controlAdapter
             .HoldJumpAsync(command.HoldMilliseconds, cancellationToken)
             .ConfigureAwait(false);
         if (!sent)
         {
-            PauseForSafety("Bonus Stage automation paused because a jump could not be delivered.");
+            _log.Info("A Bonus Stage jump could not be delivered; waiting for the next detected stage.");
             return false;
         }
 
@@ -578,6 +583,7 @@ public sealed class BonusStageAutomationService
         int endY,
         CancellationToken cancellationToken)
     {
+        if (!await WaitUntilReadyAsync(cancellationToken).ConfigureAwait(false)) return false;
         bool sent = await _controlAdapter
             .DragClientPointAsync(startX, startY, endX, endY, cancellationToken)
             .ConfigureAwait(false);
@@ -587,6 +593,7 @@ public sealed class BonusStageAutomationService
 
     private async Task<bool> ClickAsync(int x, int y, CancellationToken cancellationToken)
     {
+        if (!await WaitUntilReadyAsync(cancellationToken).ConfigureAwait(false)) return false;
         bool sent = await _pointerAdapter.ClickClientPointAsync(x, y, cancellationToken).ConfigureAwait(false);
         if (sent) _inputExecuted();
         return sent;
@@ -646,6 +653,14 @@ public sealed class BonusStageAutomationService
         while (remaining > 0)
         {
             if (_isPaused()) return false;
+            AutomationSettings settings = _settingsProvider().Normalize();
+            GameSnapshot snapshot = await _gameAdapter.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
+            if (!snapshot.CanReceiveInput(settings))
+            {
+                await Task.Delay(200, cancellationToken).ConfigureAwait(false);
+                continue;
+            }
+
             int slice = Math.Min(100, remaining);
             await Task.Delay(slice, cancellationToken).ConfigureAwait(false);
             remaining -= slice;
@@ -654,10 +669,21 @@ public sealed class BonusStageAutomationService
         return !_isPaused();
     }
 
-    private void PauseForSafety(string message)
+    private async Task<bool> WaitUntilReadyAsync(CancellationToken cancellationToken)
     {
-        if (!_isPaused()) _pauseAutomation();
-        _log.Info(message);
+        while (!_isPaused())
+        {
+            AutomationSettings settings = _settingsProvider().Normalize();
+            GameSnapshot snapshot = await _gameAdapter.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
+            if (snapshot.CanReceiveInput(settings))
+            {
+                return true;
+            }
+
+            await Task.Delay(200, cancellationToken).ConfigureAwait(false);
+        }
+
+        return false;
     }
 
     private static IReadOnlyList<BonusStageJumpCommand> Commands(

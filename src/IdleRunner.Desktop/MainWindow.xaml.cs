@@ -30,10 +30,11 @@ public partial class MainWindow : Window
             _hotkeyManager = new GlobalHotkeyManager(this);
             _hotkeyManager.ToggleRequested += OnHotkeyToggleRequested;
             _hotkeyManager.CloseRequested += OnHotkeyCloseRequested;
+            _hotkeyManager.AutoUpgradeRequested += OnHotkeyAutoUpgradeRequested;
 
             ReportHotkeyRegistration(
                 _hotkeyManager.IsToggleRegistered,
-                "Home toggles automation.",
+                "Home starts or stops automation.",
                 "The Home hotkey is unavailable. Close any legacy Idle Runner instance and restart this application.",
                 _hotkeyManager.ToggleRegistrationError);
             ReportHotkeyRegistration(
@@ -41,6 +42,11 @@ public partial class MainWindow : Window
                 "Shift+Escape exits.",
                 "The Shift+Escape hotkey is unavailable.",
                 _hotkeyManager.CloseRegistrationError);
+            ReportHotkeyRegistration(
+                _hotkeyManager.IsAutoUpgradeRegistered,
+                "Ctrl+Shift+B runs auto upgrade now.",
+                "The Ctrl+Shift+B auto-upgrade hotkey is unavailable.",
+                _hotkeyManager.AutoUpgradeRegistrationError);
         }
         catch (Exception exception)
         {
@@ -76,6 +82,11 @@ public partial class MainWindow : Window
     private void OnHotkeyCloseRequested(object? sender, EventArgs e)
     {
         Close();
+    }
+
+    private async void OnHotkeyAutoUpgradeRequested(object? sender, EventArgs e)
+    {
+        await _viewModel.RunAutoUpgradeNowAsync();
     }
 
     private void OnCopyActivityClick(object sender, RoutedEventArgs e)
@@ -120,6 +131,7 @@ public partial class MainWindow : Window
 
         _hotkeyManager.ToggleRequested -= OnHotkeyToggleRequested;
         _hotkeyManager.CloseRequested -= OnHotkeyCloseRequested;
+        _hotkeyManager.AutoUpgradeRequested -= OnHotkeyAutoUpgradeRequested;
         _hotkeyManager.Dispose();
         _hotkeyManager = null;
     }

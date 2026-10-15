@@ -51,13 +51,13 @@ public sealed class AutomationEngine
             return;
         }
 
-        _log.Info(isPaused ? "Automation paused." : "Automation started.");
+        _log.Info(isPaused ? "Automation stopped by the user." : "Automation started.");
         PauseChanged?.Invoke(this, isPaused);
     }
 
     public async Task RunAsync(CancellationToken cancellationToken)
     {
-        _log.Info("Automation engine initialized in the paused state.");
+        _log.Info("Automation engine initialized in the stopped state.");
 
         while (!cancellationToken.IsCancellationRequested)
         {

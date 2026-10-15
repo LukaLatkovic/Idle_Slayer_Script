@@ -6,18 +6,18 @@ public static class BonusStageVisualDetector
 
     public static bool IsEntranceVisible(GameFrame frame)
     {
-        return IsColor(frame, 660, 254, 0xFF, 0xE7, 0x37)
-            && IsColor(frame, 638, 236, 0xFF, 0xBB, 0x31);
+        return ContainsColor(frame, 630, 224, 680, 274, 0xFF, 0xE7, 0x37, 28)
+            && ContainsColor(frame, 608, 206, 668, 266, 0xFF, 0xBB, 0x31, 28);
     }
 
     public static bool IsStage3(GameFrame frame) =>
-        ContainsColor(frame, 160, 498, 200, 498, 0x16, 0x17, 0x1F);
+        ContainsColor(frame, 145, 488, 215, 510, 0x16, 0x17, 0x1F, 18);
 
     public static bool HasSpiritBoost(GameFrame frame) =>
-        IsColor(frame, 454, 91, 0xE1, 0xE0, 0xE2);
+        ContainsColor(frame, 440, 78, 468, 104, 0xE1, 0xE0, 0xE2, 20);
 
     public static bool IsSliderVisible(GameFrame frame) =>
-        IsColor(frame, 775, 448, 0xFF, 0xFF, 0xFF);
+        ContainsColor(frame, 765, 438, 785, 458, 0xFF, 0xFF, 0xFF, 12);
 
     public static bool IsFailureVisible(GameFrame frame) =>
         IsColor(frame, 716, 600, 0xAF, 0x00, 0x00);
