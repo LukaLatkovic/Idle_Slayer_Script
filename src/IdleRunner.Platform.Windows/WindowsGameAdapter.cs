@@ -578,8 +578,16 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
         [StructLayout(LayoutKind.Explicit)]
         internal struct InputUnion
         {
+            // INPUT is a native union. Keeping every member preserves the
+            // required x64 structure size even when only keyboard data is used.
+            [FieldOffset(0)]
+            internal MouseInput Mouse;
+
             [FieldOffset(0)]
             internal KeyboardInput Keyboard;
+
+            [FieldOffset(0)]
+            internal HardwareInput Hardware;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -590,6 +598,25 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
             internal uint Flags;
             internal uint Time;
             internal nuint ExtraInfo;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct MouseInput
+        {
+            internal int X;
+            internal int Y;
+            internal uint MouseData;
+            internal uint Flags;
+            internal uint Time;
+            internal nuint ExtraInfo;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct HardwareInput
+        {
+            internal uint Message;
+            internal ushort ParameterLow;
+            internal ushort ParameterHigh;
         }
 
     }
