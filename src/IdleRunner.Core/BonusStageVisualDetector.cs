@@ -6,8 +6,16 @@ public static class BonusStageVisualDetector
 
     public static bool IsEntranceVisible(GameFrame frame)
     {
-        return ContainsColor(frame, 630, 224, 680, 274, 0xFF, 0xE7, 0x37, 28)
-            && ContainsColor(frame, 608, 206, 668, 266, 0xFF, 0xBB, 0x31, 28);
+        if (frame is null)
+        {
+            throw new ArgumentNullException(nameof(frame));
+        }
+
+        // Keep these checks identical to the original AutoIt implementation.
+        // Both colours also occur in the regular level, so searching a wider
+        // area or adding colour tolerance produces false Bonus Stage starts.
+        return IsExactColor(frame, 660, 254, 0xFF, 0xE7, 0x37)
+            && IsExactColor(frame, 638, 236, 0xFF, 0xBB, 0x31);
     }
 
     public static bool IsStage3(GameFrame frame) =>
@@ -76,6 +84,16 @@ public static class BonusStageVisualDetector
         byte blue) =>
         x >= 0 && y >= 0 && x < frame.Width && y < frame.Height
         && Matches(frame.GetPixel(x, y), red, green, blue, DefaultTolerance);
+
+    private static bool IsExactColor(
+        GameFrame frame,
+        int x,
+        int y,
+        byte red,
+        byte green,
+        byte blue) =>
+        x >= 0 && y >= 0 && x < frame.Width && y < frame.Height
+        && Matches(frame.GetPixel(x, y), red, green, blue, 0);
 
     private static bool Matches(
         RgbColor actual,

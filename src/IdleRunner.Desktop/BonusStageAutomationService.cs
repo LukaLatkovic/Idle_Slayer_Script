@@ -5,6 +5,7 @@ namespace IdleRunner.Desktop;
 public sealed class BonusStageAutomationService
 {
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan EntranceConfirmationInterval = TimeSpan.FromMilliseconds(100);
     private static readonly TimeSpan PixelPollInterval = TimeSpan.FromMilliseconds(25);
     private static readonly TimeSpan DefaultPixelTimeout = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan SliderTimeout = TimeSpan.FromSeconds(30);
@@ -98,6 +99,14 @@ public sealed class BonusStageAutomationService
         if (!entranceVisible)
         {
             _waitingForExit = false;
+            return;
+        }
+
+        await Task.Delay(EntranceConfirmationInterval, cancellationToken).ConfigureAwait(false);
+        GameFrame? confirmationFrame = await CaptureAsync(cancellationToken).ConfigureAwait(false);
+        if (confirmationFrame is null
+            || !BonusStageVisualDetector.IsEntranceVisible(confirmationFrame))
+        {
             return;
         }
 

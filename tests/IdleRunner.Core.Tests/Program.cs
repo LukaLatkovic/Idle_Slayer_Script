@@ -30,6 +30,7 @@ internal static class Program
             ("Chest Hunt session routes the Life Saver", ChestHuntSessionRoutesLifeSaverAsync),
             ("Chest Hunt session resumes an open grid", ChestHuntSessionResumesOpenGridAsync),
             ("Bonus Stage visual states are recognized", BonusStageVisualStatesAreRecognizedAsync),
+            ("Bonus Stage entrance rejects nearby level colours", BonusStageEntranceRejectsNearbyLevelColoursAsync),
             ("Bonus Stage 2 legacy routes are complete", BonusStage2LegacyRoutesAreCompleteAsync),
             ("Paused engine does not send input", PausedEngineDoesNotSendInputAsync),
             ("Missing game does not send input", MissingGameDoesNotSendInputAsync),
@@ -101,6 +102,22 @@ internal static class Program
         AssertTrue(BonusStageVisualDetector.IsSliderVisible(frame), "Expected the opening slider.");
         AssertTrue(BonusStageVisualDetector.IsFailureVisible(frame), "Expected the failure button.");
         AssertTrue(BonusStageVisualDetector.IsStage3FailureVisible(frame), "Expected the retry state.");
+        return Task.CompletedTask;
+    }
+
+    private static Task BonusStageEntranceRejectsNearbyLevelColoursAsync()
+    {
+        byte[] nearbyPixels = new byte[1_280 * 720 * 4];
+        SetBgraPixel(nearbyPixels, 1_280, 659, 254, 0xFF, 0xE7, 0x37);
+        SetBgraPixel(nearbyPixels, 1_280, 638, 237, 0xFF, 0xBB, 0x31);
+        GameFrame nearbyFrame = new(1_280, 720, nearbyPixels);
+        AssertEqual(false, BonusStageVisualDetector.IsEntranceVisible(nearbyFrame));
+
+        byte[] tolerantPixels = new byte[1_280 * 720 * 4];
+        SetBgraPixel(tolerantPixels, 1_280, 660, 254, 0xFE, 0xE7, 0x37);
+        SetBgraPixel(tolerantPixels, 1_280, 638, 236, 0xFF, 0xBA, 0x31);
+        GameFrame tolerantFrame = new(1_280, 720, tolerantPixels);
+        AssertEqual(false, BonusStageVisualDetector.IsEntranceVisible(tolerantFrame));
         return Task.CompletedTask;
     }
 

@@ -111,8 +111,8 @@ public sealed class LegacyGameAutomationService
         }
 
         VisualObservationDefinition? silverObservation = _silverBoxObservationProvider();
-        bool silverBoxVisible = HasColor(
-            frame, 642, 28, 658, 44, 0xCA, 0x97, 0x00, 24)
+        bool silverBoxVisible = HasExactColor(
+            frame, 650, 36, 650, 36, 0xCA, 0x97, 0x00)
             || (silverObservation is not null && silverObservation.Evaluate(frame).IsMatch);
         if (settings.CollectSilverBoxesEnabled && silverBoxVisible)
         {
@@ -127,13 +127,13 @@ public sealed class LegacyGameAutomationService
             return;
         }
 
-        if (HasColor(frame, 382, 277, 388, 283, 0x14, 0x0C, 0x1C, 12))
+        if (HasExactColor(frame, 385, 280, 385, 280, 0x14, 0x0C, 0x1C))
         {
             await RunExclusiveAsync(RageWhenHordeAsync, cancellationToken).ConfigureAwait(false);
             return;
         }
 
-        if (HasColor(frame, 1127, 607, 1133, 613, 0xCB, 0xCB, 0x4C, 12))
+        if (HasExactColor(frame, 1130, 610, 1130, 610, 0xCB, 0xCB, 0x4C))
         {
             await RunExclusiveAsync(ClaimQuestsAsync, cancellationToken).ConfigureAwait(false);
             return;
@@ -145,7 +145,7 @@ public sealed class LegacyGameAutomationService
             await PressRageAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        if (HasColor(frame, 96, 110, 102, 116, 0xFF, 0xFF, 0x7A, 12))
+        if (HasExactColor(frame, 99, 113, 99, 113, 0xFF, 0xFF, 0x7A))
         {
             await RunExclusiveAsync(CollectMinionsAsync, cancellationToken).ConfigureAwait(false);
             return;
@@ -846,7 +846,7 @@ public sealed class LegacyGameAutomationService
 
     private async Task CloseVisibleResultAsync(GameFrame frame, CancellationToken cancellationToken)
     {
-        if (HasColor(frame, 665, 580, 695, 610, 0xAF, 0x00, 0x00, 24))
+        if (HasExactColor(frame, 680, 593, 680, 593, 0xAF, 0x00, 0x00))
         {
             await ClickAsync(780, 600, cancellationToken).ConfigureAwait(false);
         }
@@ -977,31 +977,42 @@ public sealed class LegacyGameAutomationService
         _frameSource.CaptureAsync(cancellationToken);
 
     private static bool HasSoulBonus(GameFrame frame) =>
-        HasColor(frame, 615, 130, 640, 225, 0xA8, 0x6D, 0x0A, 28);
+        HasExactColor(frame, 625, 143, 629, 214, 0xA8, 0x6D, 0x0A);
 
     private static bool IsPortalReady(GameFrame frame)
     {
-        bool button = HasColor(frame, 1165, 150, 1195, 182, 0x83, 0x03, 0x99, 28)
-            || HasColor(frame, 1165, 150, 1195, 182, 0x29, 0x01, 0x30, 20);
-        bool timerVisible = HasColor(frame, 1145, 135, 1220, 165, 0xFF, 0xFF, 0xFF, 18);
+        bool button = HasExactColor(frame, 1180, 166, 1180, 166, 0x83, 0x03, 0x99)
+            || HasExactColor(frame, 1180, 166, 1180, 166, 0x29, 0x01, 0x30);
+        bool timerVisible = HasColor(frame, 1154, 144, 1210, 155, 0xFF, 0xFF, 0xFF, 9);
         return button && !timerVisible;
     }
 
     private static bool IsBossEntrance(GameFrame frame) =>
-        HasColor(frame, 620, 205, 660, 245, 0xFF, 0x87, 0x8A, 28)
-        && HasColor(frame, 615, 205, 655, 245, 0xF2, 0x63, 0xBD, 28)
-        && HasColor(frame, 625, 205, 665, 245, 0xFF, 0xF3, 0x8F, 28);
+        HasExactColor(frame, 639, 224, 639, 224, 0xFF, 0x87, 0x8A)
+        && HasExactColor(frame, 634, 224, 634, 224, 0xF2, 0x63, 0xBD)
+        && HasExactColor(frame, 644, 224, 644, 224, 0xFF, 0xF3, 0x8F);
 
     private static bool IsKnightBoss(GameFrame frame) =>
-        HasColor(frame, 15, 675, 45, 710, 0x0B, 0x03, 0x03, 14);
+        HasExactColor(frame, 30, 690, 30, 690, 0x0B, 0x03, 0x03);
 
     private static bool IsAscendingHeightsEntrance(GameFrame frame) =>
-        HasColor(frame, 650, 195, 690, 235, 0xC2, 0xF4, 0xF9, 26)
-        && HasColor(frame, 620, 225, 660, 650, 0xFF, 0xCC, 0x66, 26);
+        HasExactColor(frame, 671, 213, 671, 213, 0xC2, 0xF4, 0xF9)
+        && HasExactColor(frame, 640, 240, 634, 640, 0xFF, 0xCC, 0x66);
 
     private static bool IsChestHuntEntrance(GameFrame frame) =>
-        HasColor(frame, 170, 280, 205, 310, 0xFF, 0xBB, 0x31, 28)
-        && HasColor(frame, 170, 290, 205, 320, 0xF6, 0x8F, 0x37, 28);
+        HasExactColor(frame, 187, 296, 187, 296, 0xFF, 0xBB, 0x31)
+        && HasExactColor(frame, 187, 303, 187, 303, 0xF6, 0x8F, 0x37);
+
+    private static bool HasExactColor(
+        GameFrame frame,
+        int left,
+        int top,
+        int right,
+        int bottom,
+        byte red,
+        byte green,
+        byte blue) =>
+        HasColor(frame, left, top, right, bottom, red, green, blue, 0);
 
     private static bool HasColor(
         GameFrame frame,
