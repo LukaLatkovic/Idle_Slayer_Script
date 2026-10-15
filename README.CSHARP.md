@@ -80,7 +80,7 @@ The Silver Box collector recognizes the original top-window gold marker and clic
 
 The Chest Hunt calibration in **Minigames** must be run while the yellow Saver marker and multiple closed chests are visible. It records both the Saver and the dominant closed-chest shape and verifies that exactly one Saver matches. Calibration itself never opens a chest and does not change the Start/Stop state.
 
-Bonus Stage automation requires the same 1280 x 720 client area as the legacy routes. Its entrance markers now use bounded regions and color tolerance instead of a single exact pixel. A failed stage or missing marker ends only that attempt and never stops the main automation.
+Bonus Stage automation requires the same 1280 x 720 client area as the legacy routes. Its entrance uses the original pair of exact pixel markers and requires confirmation in two consecutive frames to prevent normal gameplay from starting a minigame route. A failed stage or missing marker ends only that attempt and never stops the main automation.
 
 The Windows adapter checks foreground ownership again immediately before emitting input.
 Each jump-and-boost command holds both mouse buttons for 35 milliseconds so the Unity input loop can observe the pressed state before they are released. Targeted UI, Chest Hunt, and Bonus Stage input uses the legacy `mouse_event` path and leaves the cursor on the target until the next action because the installed Unity 6000.3 build evaluates the cursor position on a later frame. Keyboard `SendInput` and direct window messages were tested and ignored by the game.

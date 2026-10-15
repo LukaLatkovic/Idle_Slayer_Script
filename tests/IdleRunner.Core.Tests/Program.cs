@@ -19,6 +19,7 @@ internal static class Program
             ("Gameplay HUD calibration recognizes its source frame", GameplayHudCalibrationRecognizesSourceAsync),
             ("Silver Box calibration rejects a missing icon", SilverBoxCalibrationRejectsMissingIconAsync),
             ("Silver Box legacy marker works without calibration", SilverBoxLegacyMarkerWorksWithoutCalibrationAsync),
+            ("Silver Box click uses client coordinates", SilverBoxClickUsesClientCoordinatesAsync),
             ("Chest Hunt normal strategy opens the Life Saver after two chests", ChestHuntNormalStrategyAsync),
             ("Chest Hunt perfect strategy preserves its search limits", ChestHuntPerfectStrategyAsync),
             ("Chest Hunt special outcomes override the strategy", ChestHuntSpecialOutcomesAsync),
@@ -362,6 +363,13 @@ internal static class Program
         bool canRun = await module.CanRunAsync(snapshot, new AutomationSettings(), CancellationToken.None);
 
         AssertTrue(canRun, "Expected the original Silver Box marker to work without calibration.");
+    }
+
+    private static Task SilverBoxClickUsesClientCoordinatesAsync()
+    {
+        AssertEqual(640, SilverBoxCalibration.ClickX);
+        AssertEqual(17, SilverBoxCalibration.ClickY);
+        return Task.CompletedTask;
     }
 
     private static Task ChestHuntNormalStrategyAsync()
