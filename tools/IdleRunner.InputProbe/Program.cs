@@ -12,6 +12,7 @@ internal static partial class Program
     private const uint InputMouse = 0;
     private const uint InputKeyboard = 1;
     private const uint KeyEventKeyUp = 0x0002;
+    private const uint KeyEventExtendedKey = 0x0001;
     private const uint KeyEventScanCode = 0x0008;
     private const uint MouseEventLeftDown = 0x0002;
     private const uint MouseEventLeftUp = 0x0004;
@@ -19,6 +20,8 @@ internal static partial class Program
     private const uint MouseEventRightUp = 0x0010;
     private const ushort VirtualKeySpace = 0x20;
     private const ushort ScanCodeSpace = 0x39;
+    private const ushort ScanCodeUp = 0x48;
+    private const ushort ScanCodeRight = 0x4D;
 
     private static async Task<int> Main(string[] args)
     {
@@ -65,6 +68,20 @@ internal static partial class Program
                     Send(NativeMethods.Input.ScanCode(ScanCodeSpace, keyUp: false));
                     await Task.Delay(1_000);
                     Send(NativeMethods.Input.ScanCode(ScanCodeSpace, keyUp: true));
+                    break;
+                case "scan-up":
+                    Send(NativeMethods.Input.ScanCode(ScanCodeUp, keyUp: false, extended: true));
+                    await Task.Delay(1_000);
+                    Send(NativeMethods.Input.ScanCode(ScanCodeUp, keyUp: true, extended: true));
+                    break;
+                case "scan-up-right":
+                    Send(
+                        NativeMethods.Input.ScanCode(ScanCodeUp, keyUp: false, extended: true),
+                        NativeMethods.Input.ScanCode(ScanCodeRight, keyUp: false, extended: true));
+                    await Task.Delay(1_000);
+                    Send(
+                        NativeMethods.Input.ScanCode(ScanCodeRight, keyUp: true, extended: true),
+                        NativeMethods.Input.ScanCode(ScanCodeUp, keyUp: true, extended: true));
                     break;
                 case "mouse-left":
                     Send(NativeMethods.Input.Mouse(MouseEventLeftDown));
@@ -163,7 +180,7 @@ internal static partial class Program
     {
         Console.Error.WriteLine(
             "Usage: IdleRunner.InputProbe "
-            + "<capture [output.bmp]|virtual-space|scan-space|mouse-left|mouse-right|"
+            + "<capture [output.bmp]|virtual-space|scan-space|scan-up|scan-up-right|mouse-left|mouse-right|"
             + "mouse-jump-boost|mouse-safe-jump-boost|close-test-panels>");
     }
 
@@ -282,7 +299,10 @@ internal static partial class Program
                 };
             }
 
-            internal static Input ScanCode(ushort scanCode, bool keyUp)
+            internal static Input ScanCode(
+                ushort scanCode,
+                bool keyUp,
+                bool extended = false)
             {
                 return new Input
                 {
@@ -292,7 +312,9 @@ internal static partial class Program
                         Keyboard = new KeyboardInput
                         {
                             ScanCode = scanCode,
-                            Flags = KeyEventScanCode | (keyUp ? KeyEventKeyUp : 0)
+                            Flags = KeyEventScanCode
+                                | (extended ? KeyEventExtendedKey : 0)
+                                | (keyUp ? KeyEventKeyUp : 0)
                         }
                     }
                 };

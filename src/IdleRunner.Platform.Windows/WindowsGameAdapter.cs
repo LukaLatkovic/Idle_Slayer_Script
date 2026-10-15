@@ -7,7 +7,9 @@ namespace IdleRunner.Platform.Windows;
 public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapter, IGameControlAdapter
 {
     private const string GameWindowTitle = "Idle Slayer";
-    private const int InputPulseMilliseconds = 35;
+    private const int MinimumKeyHoldMilliseconds = 35;
+    // Unity reads raw keyboard state, so short synthetic pulses can fall between input polls.
+    private const int StandardGameplayPulseMilliseconds = 500;
     private const int TargetedClickMilliseconds = 100;
     private const uint InputKeyboard = 1;
     private const uint MouseEventLeftDown = 0x0002;
@@ -120,7 +122,7 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
     {
         return await SendScanCodesAsync(
             window,
-            InputPulseMilliseconds,
+            StandardGameplayPulseMilliseconds,
             cancellationToken,
             UpKey,
             RightKey).ConfigureAwait(false);
@@ -174,7 +176,7 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
         {
             return await SendScanCodesAsync(
                 _gameWindow,
-                Math.Max(InputPulseMilliseconds, durationMilliseconds),
+                Math.Max(MinimumKeyHoldMilliseconds, durationMilliseconds),
                 cancellationToken,
                 UpKey).ConfigureAwait(false);
         }
@@ -273,7 +275,7 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
         {
             return await SendScanCodesAsync(
                 _gameWindow,
-                InputPulseMilliseconds,
+                MinimumKeyHoldMilliseconds,
                 cancellationToken,
                 RageKey).ConfigureAwait(false);
         }
@@ -364,7 +366,7 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
         try
         {
             await Task.Delay(
-                Math.Max(InputPulseMilliseconds, durationMilliseconds),
+                Math.Max(MinimumKeyHoldMilliseconds, durationMilliseconds),
                 cancellationToken).ConfigureAwait(false);
         }
         finally
