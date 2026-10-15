@@ -10,4 +10,4 @@ The primary workspace contains the game connection state, automation state, one 
 
 ## Interaction thesis
 
-The application always starts paused. It sends input only when Idle Slayer is the foreground window and its client area matches the configured reference size. A subtle entrance transition establishes hierarchy, while a restrained status pulse is used only when automation is active. Status changes and blocked actions are written in plain English.
+The application always starts stopped. Once started, it sends input only when Idle Slayer is the foreground window and its client area matches the configured reference size. Losing foreground changes the status to waiting without changing the running state, and returning to the game resumes automatically. A subtle entrance transition establishes hierarchy, while a restrained status pulse is used only when automation is active. Status changes and blocked actions are written in plain English.

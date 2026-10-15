@@ -8,7 +8,7 @@ The first vertical slice provides:
 
 - a .NET 10 WPF desktop application;
 - an automation core that is independent of Windows and UI code;
-- a Windows adapter that locates the Idle Slayer window and emits left-click jump and right-click boost pulses through `SendInput`;
+- a Windows adapter that locates the Idle Slayer window and emits the legacy Up/Right jump and boost bindings without moving the cursor;
 - explicit game activation when the user starts automation;
 - enforced foreground-window and 1280 x 720 client-area safety gates;
 - an explicit stopped-by-default Start/Stop state;
@@ -35,7 +35,7 @@ The visual stack provides typed BGRA frames and normalized luminance template ma
 | Project | Purpose |
 | --- | --- |
 | `IdleRunner.Core` | Automation rules and adapter contracts. Targets .NET Standard 2.1 so it can be shared with a future .NET 6 mod adapter. |
-| `IdleRunner.Platform.Windows` | Idle Slayer window discovery and guarded Win32 mouse input. |
+| `IdleRunner.Platform.Windows` | Idle Slayer window discovery and guarded Win32 keyboard/pointer input. |
 | `IdleRunner.Desktop` | WPF control surface, settings persistence, and logging. |
 | `IdleRunner.Core.Tests` | Small executable test suite with no external test packages. |
 | `IdleRunner.InputProbe` | One-shot Windows input diagnostics and repeatable BMP frame capture against a running game build. |
@@ -63,7 +63,7 @@ Configuration changes are saved immediately. All options inherited from the orig
 
 Chest Hunt strategy and Lockpicking timing are connected to the calibrated 10 x 3 grid. The runner recognizes closed chests by shape, retries ignored clicks, classifies Mimic and 2x result signatures, opens the Saver according to the configured strategy, and closes the result screen. It can continue a partially opened grid by skipping opened cells and using the original application's no-Mimic fallback state when earlier outcomes are unavailable.
 
-Bonus Stage automation recognizes the legacy entrance, clears any opening slider, determines stage 2 or 3 and Spirit Boost state, then runs every section from `BonusStage.au3` with the original hold and wait timings. Jump commands use direct left-mouse holds because the current Unity build ignores synthetic keyboard commands. If **Skip bonus stage** is enabled, the runner waits for the failure result and closes it instead of starting the route.
+Bonus Stage automation recognizes the legacy entrance, clears any opening slider, determines stage 2 or 3 and Spirit Boost state, then runs every section from `BonusStage.au3` with the original hold and wait timings. Jump commands use the legacy Up binding without moving the system cursor. If **Skip bonus stage** is enabled, the runner waits for the failure result and closes it instead of starting the route.
 
 ## Safety behavior
 
@@ -82,10 +82,9 @@ The Chest Hunt calibration in **Minigames** must be run while the yellow Saver m
 
 Bonus Stage automation requires the same 1280 x 720 client area as the legacy routes. Its entrance uses the original pair of exact pixel markers and requires confirmation in two consecutive frames to prevent normal gameplay from starting a minigame route. A failed stage or missing marker ends only that attempt and never stops the main automation.
 
-The Windows adapter checks foreground ownership again immediately before emitting input.
-Each jump-and-boost command holds both mouse buttons for 35 milliseconds so the Unity input loop can observe the pressed state before they are released. Targeted UI, Chest Hunt, and Bonus Stage input uses the legacy `mouse_event` path and leaves the cursor on the target until the next action because the installed Unity 6000.3 build evaluates the cursor position on a later frame. Keyboard `SendInput` and direct window messages were tested and ignored by the game.
+The Windows adapter checks foreground ownership again immediately before emitting input. Standard jump/boost pulses use the game's documented Up/Right bindings, and timed Bonus Stage or boss jumps hold Up for the legacy duration.
 
-Because Unity evaluates the real cursor location for mouse input, the Windows adapter moves the cursor only for the duration of a serialized command. It restores the saved user position immediately afterward; if the user moved the mouse during the command, the user's new position is preserved. Losing foreground temporarily suspends timers and input, and returning to Idle Slayer resumes automatically without another click.
+Standard movement never repositions the system cursor. Targeted UI actions still move it briefly to the required control, restore the saved user position immediately afterward, and preserve a new position if the user moved the mouse during the command. Losing foreground temporarily suspends timers and input without changing the Start/Stop state; returning to Idle Slayer resumes automatically without another click.
 
 ## Next migration slices
 

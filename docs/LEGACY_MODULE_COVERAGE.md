@@ -40,7 +40,7 @@ This document maps the AutoIt implementation to the C# automation runtime. The o
 - Only the user can change the application from running to stopped, through the main button or the Home shortcut.
 - Losing foreground does not change the Start/Stop state. Input and active sequence timers wait until Idle Slayer becomes foreground again, then resume automatically.
 - Unexpected detector, capture, or input failures end only the current module attempt and are written to Activity. They do not stop the main automation.
-- Mouse operations are serialized. The cursor is moved only for a command and restored afterward. If the user moves it during a command, the user's new position is preserved.
+- Standard jump/boost and timed jump holds use the legacy Up/Right bindings and never move the system cursor. Targeted UI mouse operations are serialized and restored afterward; if the user moves the cursor during one, the user's new position is preserved.
 - Long or formerly unbounded AutoIt searches have finite iteration or time limits so one stale screen cannot block every other module permanently.
 
 ## Original game prerequisites

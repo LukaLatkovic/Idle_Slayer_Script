@@ -9,13 +9,12 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
     private const string GameWindowTitle = "Idle Slayer";
     private const int InputPulseMilliseconds = 35;
     private const int TargetedClickMilliseconds = 100;
-    private const uint InputMouse = 0;
     private const uint MouseEventLeftDown = 0x0002;
     private const uint MouseEventLeftUp = 0x0004;
-    private const uint MouseEventRightDown = 0x0008;
-    private const uint MouseEventRightUp = 0x0010;
     private const uint MouseEventWheel = 0x0800;
     private const uint KeyEventKeyUp = 0x0002;
+    private const byte VirtualKeyUp = 0x26;
+    private const byte VirtualKeyRight = 0x27;
     private const byte VirtualKeyR = 0x52;
     private const int WheelDelta = 120;
     private const int ShowWindowRestore = 9;
@@ -116,36 +115,12 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
 
     private async Task<bool> SendJumpAndBoostAsync(nint window, CancellationToken cancellationToken)
     {
-        if (!TryParkCursor(window))
-        {
-            return false;
-        }
-
-        NativeMethods.Input[] buttonDownInputs =
-        [
-            NativeMethods.Input.MouseButton(MouseEventLeftDown),
-            NativeMethods.Input.MouseButton(MouseEventRightDown)
-        ];
-        NativeMethods.Input[] buttonUpInputs =
-        [
-            NativeMethods.Input.MouseButton(MouseEventRightUp),
-            NativeMethods.Input.MouseButton(MouseEventLeftUp)
-        ];
-
-        SendInputEvents(buttonDownInputs);
-
-        try
-        {
-            await Task.Delay(InputPulseMilliseconds, cancellationToken).ConfigureAwait(false);
-        }
-        finally
-        {
-            SendInputEvents(buttonUpInputs);
-        }
-
-        await Task.Delay(20, cancellationToken).ConfigureAwait(false);
-
-        return true;
+        return await SendVirtualKeysAsync(
+            window,
+            InputPulseMilliseconds,
+            cancellationToken,
+            VirtualKeyUp,
+            VirtualKeyRight).ConfigureAwait(false);
     }
 
     private async Task<bool> ClickSilverBoxAsync(nint window, CancellationToken cancellationToken)
@@ -194,26 +169,11 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
         await _inputLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            nint window = _gameWindow;
-            if (!CanSendInput(window) || !TryParkCursor(window))
-            {
-                return false;
-            }
-
-            NativeMethods.MouseEvent(MouseEventLeftDown, 0, 0, 0, nuint.Zero);
-            try
-            {
-                await Task.Delay(
-                    Math.Max(InputPulseMilliseconds, durationMilliseconds),
-                    cancellationToken).ConfigureAwait(false);
-            }
-            finally
-            {
-                NativeMethods.MouseEvent(MouseEventLeftUp, 0, 0, 0, nuint.Zero);
-            }
-
-            await Task.Delay(20, cancellationToken).ConfigureAwait(false);
-            return true;
+            return await SendVirtualKeysAsync(
+                _gameWindow,
+                Math.Max(InputPulseMilliseconds, durationMilliseconds),
+                cancellationToken,
+                VirtualKeyUp).ConfigureAwait(false);
         }
         finally
         {
@@ -308,22 +268,11 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
         await _inputLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (!CanSendInput(_gameWindow))
-            {
-                return false;
-            }
-
-            NativeMethods.KeybdEvent(VirtualKeyR, 0, 0, nuint.Zero);
-            try
-            {
-                await Task.Delay(InputPulseMilliseconds, cancellationToken).ConfigureAwait(false);
-            }
-            finally
-            {
-                NativeMethods.KeybdEvent(VirtualKeyR, 0, KeyEventKeyUp, nuint.Zero);
-            }
-
-            return true;
+            return await SendVirtualKeysAsync(
+                _gameWindow,
+                InputPulseMilliseconds,
+                cancellationToken,
+                VirtualKeyR).ConfigureAwait(false);
         }
         finally
         {
@@ -393,31 +342,38 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
         return Task.CompletedTask;
     }
 
-    private static void SendInputEvents(NativeMethods.Input[] inputs)
+    private static async Task<bool> SendVirtualKeysAsync(
+        nint window,
+        int durationMilliseconds,
+        CancellationToken cancellationToken,
+        params byte[] virtualKeys)
     {
-        uint sent = NativeMethods.SendInput(
-            (uint)inputs.Length,
-            inputs,
-            Marshal.SizeOf<NativeMethods.Input>());
-
-        if (sent != inputs.Length)
+        if (!CanSendInput(window) || virtualKeys.Length == 0)
         {
-            throw new Win32Exception(Marshal.GetLastWin32Error(), "Windows did not accept all mouse input events.");
-        }
-    }
-
-    private bool TryParkCursor(nint window)
-    {
-        if (!NativeMethods.GetClientRect(window, out NativeMethods.Rect clientRect))
-        {
-            RestoreCursor();
             return false;
         }
 
-        return TryMoveCursorToClientPoint(
-            window,
-            (clientRect.Right - clientRect.Left) / 2,
-            (clientRect.Bottom - clientRect.Top) / 2);
+        foreach (byte virtualKey in virtualKeys)
+        {
+            NativeMethods.KeybdEvent(virtualKey, 0, 0, nuint.Zero);
+        }
+
+        try
+        {
+            await Task.Delay(
+                Math.Max(InputPulseMilliseconds, durationMilliseconds),
+                cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            for (int index = virtualKeys.Length - 1; index >= 0; index--)
+            {
+                NativeMethods.KeybdEvent(virtualKeys[index], 0, KeyEventKeyUp, nuint.Zero);
+            }
+        }
+
+        await Task.Delay(20, cancellationToken).ConfigureAwait(false);
+        return true;
     }
 
     private bool TryMoveCursorToClientPoint(nint window, int clientX, int clientY)
@@ -528,12 +484,6 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
         [return: MarshalAs(UnmanagedType.Bool)]
         internal static partial bool SetCursorPos(int x, int y);
 
-        [LibraryImport("user32.dll", SetLastError = true)]
-        internal static partial uint SendInput(
-            uint inputCount,
-            [In] Input[] inputs,
-            int inputSize);
-
         [LibraryImport("user32.dll", EntryPoint = "mouse_event")]
         internal static partial void MouseEvent(
             uint flags,
@@ -571,68 +521,5 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
             internal int Y;
         }
 
-        [StructLayout(LayoutKind.Sequential)]
-        internal struct Input
-        {
-            internal uint Type;
-            internal InputUnion Data;
-
-            internal static Input MouseButton(uint flags)
-            {
-                return new Input
-                {
-                    Type = InputMouse,
-                    Data = new InputUnion
-                    {
-                        Mouse = new MouseInput
-                        {
-                            Flags = flags
-                        }
-                    }
-                };
-            }
-        }
-
-        [StructLayout(LayoutKind.Explicit)]
-        internal struct InputUnion
-        {
-            [FieldOffset(0)]
-            internal MouseInput Mouse;
-
-            [FieldOffset(0)]
-            internal KeyboardInput Keyboard;
-
-            [FieldOffset(0)]
-            internal HardwareInput Hardware;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        internal struct KeyboardInput
-        {
-            internal ushort VirtualKey;
-            internal ushort ScanCode;
-            internal uint Flags;
-            internal uint Time;
-            internal nuint ExtraInfo;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        internal struct MouseInput
-        {
-            internal int X;
-            internal int Y;
-            internal uint MouseData;
-            internal uint Flags;
-            internal uint Time;
-            internal nuint ExtraInfo;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        internal struct HardwareInput
-        {
-            internal uint Message;
-            internal ushort ParameterLow;
-            internal ushort ParameterHigh;
-        }
     }
 }

@@ -6,9 +6,9 @@ The active rewrite is being developed on the `feature/csharp-rewrite` branch. Th
 
 - Native Windows desktop application built with C# 14, .NET 10, and WPF.
 - Locates and activates the Steam version of Idle Slayer.
-- Sends verified left/right mouse input pulses for jump and boost.
+- Sends the legacy Up/Right jump and boost bindings without moving the system cursor.
 - Requires the game client to be 1280x720 and in the foreground before sending input.
-- Restores the user's cursor after every command and does not pin it while automation is running.
+- Leaves the cursor free during standard automation and restores it after targeted UI clicks.
 - Starts stopped, persists settings, prevents duplicate instances, and keeps an activity log.
 - Uses independently scheduled automation modules so additional gameplay features can be migrated incrementally.
 - Captures the game client and supports shape-based grayscale template matching instead of relying only on exact pixel colors.

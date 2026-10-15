@@ -36,6 +36,7 @@ internal static class Program
             ("Paused engine does not send input", PausedEngineDoesNotSendInputAsync),
             ("Missing game does not send input", MissingGameDoesNotSendInputAsync),
             ("Background game does not send input", BackgroundGameDoesNotSendInputAsync),
+            ("Foreground return resumes input without another start", ForegroundReturnResumesInputAsync),
             ("Wrong client size does not send input", WrongClientSizeDoesNotSendInputAsync),
             ("Ready game receives input", ReadyGameReceivesInputAsync),
             ("Visual gate blocks input", VisualGateBlocksInputAsync),
@@ -666,6 +667,24 @@ internal static class Program
         AssertEqual(0, adapter.ExecutionCount);
     }
 
+    private static async Task ForegroundReturnResumesInputAsync()
+    {
+        GameSnapshot background = new(GameConnectionState.Ready, false, 1_280, 720);
+        GameSnapshot foreground = new(GameConnectionState.Ready, true, 1_280, 720);
+        FakeGameAdapter adapter = new(background);
+        AutomationEngine engine = CreateEngine(adapter);
+        engine.SetPaused(false);
+
+        await engine.RunOnceAsync(Settings, CancellationToken.None);
+        AssertEqual(0, adapter.ExecutionCount);
+        AssertEqual(false, engine.IsPaused);
+
+        adapter.Snapshot = foreground;
+        await engine.RunOnceAsync(Settings, CancellationToken.None);
+        AssertEqual(1, adapter.ExecutionCount);
+        AssertEqual(false, engine.IsPaused);
+    }
+
     private static async Task WrongClientSizeDoesNotSendInputAsync()
     {
         FakeGameAdapter adapter = new(new GameSnapshot(
@@ -1047,14 +1066,15 @@ internal static class Program
 
     private sealed class FakeGameAdapter : IGameAdapter
     {
-        private readonly GameSnapshot _snapshot;
         private readonly bool _executionSucceeds;
 
         public FakeGameAdapter(GameSnapshot snapshot, bool executionSucceeds = true)
         {
-            _snapshot = snapshot;
+            Snapshot = snapshot;
             _executionSucceeds = executionSucceeds;
         }
+
+        public GameSnapshot Snapshot { get; set; }
 
         public int ExecutionCount { get; private set; }
 
@@ -1063,7 +1083,7 @@ internal static class Program
         public Task<GameSnapshot> GetSnapshotAsync(CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult(_snapshot);
+            return Task.FromResult(Snapshot);
         }
 
         public Task<bool> TryActivateAsync(CancellationToken cancellationToken)

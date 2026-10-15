@@ -409,8 +409,8 @@
                     <TextBlock Text="✓ Idle Slayer must be foreground" Margin="0,0,0,9" />
                     <TextBlock Text="✓ Client area must be 1280 × 720" Margin="0,0,0,9" />
                     <TextBlock Text="✓ Single application instance" Margin="0,0,0,9" />
-                    <TextBlock Text="✓ Mouse jump + boost, 35 ms pulse" Margin="0,0,0,9" />
-                    <TextBlock Text="✓ Cursor restored after every command" Margin="0,0,0,9" />
+                    <TextBlock Text="✓ Cursor-free Up + Right input" Margin="0,0,0,9" />
+                    <TextBlock Text="✓ Cursor restored after targeted clicks" Margin="0,0,0,9" />
                     <TextBlock Text="Home starts/stops · Shift+Esc exits" />
                 </StackPanel>
 
