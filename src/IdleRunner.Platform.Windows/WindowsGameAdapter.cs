@@ -9,13 +9,16 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
     private const string GameWindowTitle = "Idle Slayer";
     private const int InputPulseMilliseconds = 35;
     private const int TargetedClickMilliseconds = 100;
+    private const uint InputKeyboard = 1;
     private const uint MouseEventLeftDown = 0x0002;
     private const uint MouseEventLeftUp = 0x0004;
     private const uint MouseEventWheel = 0x0800;
+    private const uint KeyEventExtendedKey = 0x0001;
     private const uint KeyEventKeyUp = 0x0002;
-    private const byte VirtualKeyUp = 0x26;
-    private const byte VirtualKeyRight = 0x27;
-    private const byte VirtualKeyR = 0x52;
+    private const uint KeyEventScanCode = 0x0008;
+    private static readonly ScanCodeKey UpKey = new(0x48, IsExtended: true);
+    private static readonly ScanCodeKey RightKey = new(0x4D, IsExtended: true);
+    private static readonly ScanCodeKey RageKey = new(0x13, IsExtended: false);
     private const int WheelDelta = 120;
     private const int ShowWindowRestore = 9;
 
@@ -115,12 +118,12 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
 
     private async Task<bool> SendJumpAndBoostAsync(nint window, CancellationToken cancellationToken)
     {
-        return await SendVirtualKeysAsync(
+        return await SendScanCodesAsync(
             window,
             InputPulseMilliseconds,
             cancellationToken,
-            VirtualKeyUp,
-            VirtualKeyRight).ConfigureAwait(false);
+            UpKey,
+            RightKey).ConfigureAwait(false);
     }
 
     private async Task<bool> ClickSilverBoxAsync(nint window, CancellationToken cancellationToken)
@@ -169,11 +172,11 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
         await _inputLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            return await SendVirtualKeysAsync(
+            return await SendScanCodesAsync(
                 _gameWindow,
                 Math.Max(InputPulseMilliseconds, durationMilliseconds),
                 cancellationToken,
-                VirtualKeyUp).ConfigureAwait(false);
+                UpKey).ConfigureAwait(false);
         }
         finally
         {
@@ -268,11 +271,11 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
         await _inputLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            return await SendVirtualKeysAsync(
+            return await SendScanCodesAsync(
                 _gameWindow,
                 InputPulseMilliseconds,
                 cancellationToken,
-                VirtualKeyR).ConfigureAwait(false);
+                RageKey).ConfigureAwait(false);
         }
         finally
         {
@@ -342,21 +345,21 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
         return Task.CompletedTask;
     }
 
-    private static async Task<bool> SendVirtualKeysAsync(
+    private static async Task<bool> SendScanCodesAsync(
         nint window,
         int durationMilliseconds,
         CancellationToken cancellationToken,
-        params byte[] virtualKeys)
+        params ScanCodeKey[] keys)
     {
-        if (!CanSendInput(window) || virtualKeys.Length == 0)
+        if (!CanSendInput(window) || keys.Length == 0)
         {
             return false;
         }
 
-        foreach (byte virtualKey in virtualKeys)
-        {
-            NativeMethods.KeybdEvent(virtualKey, 0, 0, nuint.Zero);
-        }
+        NativeMethods.Input[] keyDownInputs = keys
+            .Select(key => NativeMethods.Input.KeyboardScanCode(key, keyUp: false))
+            .ToArray();
+        SendKeyboardEvents(keyDownInputs);
 
         try
         {
@@ -366,14 +369,30 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
         }
         finally
         {
-            for (int index = virtualKeys.Length - 1; index >= 0; index--)
-            {
-                NativeMethods.KeybdEvent(virtualKeys[index], 0, KeyEventKeyUp, nuint.Zero);
-            }
+            NativeMethods.Input[] keyUpInputs = keys
+                .Reverse()
+                .Select(key => NativeMethods.Input.KeyboardScanCode(key, keyUp: true))
+                .ToArray();
+            SendKeyboardEvents(keyUpInputs);
         }
 
         await Task.Delay(20, cancellationToken).ConfigureAwait(false);
         return true;
+    }
+
+    private static void SendKeyboardEvents(NativeMethods.Input[] inputs)
+    {
+        uint sent = NativeMethods.SendInput(
+            (uint)inputs.Length,
+            inputs,
+            Marshal.SizeOf<NativeMethods.Input>());
+
+        if (sent != inputs.Length)
+        {
+            throw new Win32Exception(
+                Marshal.GetLastWin32Error(),
+                "Windows did not accept all keyboard input events.");
+        }
     }
 
     private bool TryMoveCursorToClientPoint(nint window, int clientX, int clientY)
@@ -440,6 +459,8 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
         _cursorIsParked = false;
     }
 
+    private readonly record struct ScanCodeKey(ushort ScanCode, bool IsExtended);
+
     private static partial class NativeMethods
     {
         [LibraryImport("user32.dll", EntryPoint = "FindWindowW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
@@ -484,19 +505,18 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
         [return: MarshalAs(UnmanagedType.Bool)]
         internal static partial bool SetCursorPos(int x, int y);
 
+        [LibraryImport("user32.dll", SetLastError = true)]
+        internal static partial uint SendInput(
+            uint inputCount,
+            [In] Input[] inputs,
+            int inputSize);
+
         [LibraryImport("user32.dll", EntryPoint = "mouse_event")]
         internal static partial void MouseEvent(
             uint flags,
             uint deltaX,
             uint deltaY,
             uint data,
-            nuint extraInformation);
-
-        [LibraryImport("user32.dll", EntryPoint = "keybd_event")]
-        internal static partial void KeybdEvent(
-            byte virtualKey,
-            byte scanCode,
-            uint flags,
             nuint extraInformation);
 
         [StructLayout(LayoutKind.Sequential)]
@@ -519,6 +539,57 @@ public sealed partial class WindowsGameAdapter : IGameAdapter, IGamePointerAdapt
 
             internal int X;
             internal int Y;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct Input
+        {
+            internal uint Type;
+            internal InputUnion Data;
+
+            internal static Input KeyboardScanCode(ScanCodeKey key, bool keyUp)
+            {
+                uint flags = KeyEventScanCode;
+                if (key.IsExtended)
+                {
+                    flags |= KeyEventExtendedKey;
+                }
+
+                if (keyUp)
+                {
+                    flags |= KeyEventKeyUp;
+                }
+
+                return new Input
+                {
+                    Type = InputKeyboard,
+                    Data = new InputUnion
+                    {
+                        Keyboard = new KeyboardInput
+                        {
+                            ScanCode = key.ScanCode,
+                            Flags = flags
+                        }
+                    }
+                };
+            }
+        }
+
+        [StructLayout(LayoutKind.Explicit)]
+        internal struct InputUnion
+        {
+            [FieldOffset(0)]
+            internal KeyboardInput Keyboard;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct KeyboardInput
+        {
+            internal ushort VirtualKey;
+            internal ushort ScanCode;
+            internal uint Flags;
+            internal uint Time;
+            internal nuint ExtraInfo;
         }
 
     }
